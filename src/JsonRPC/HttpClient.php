@@ -95,7 +95,7 @@ class HttpClient
      *
      * @var array
      */
-    protected options = array();	
+    protected $options = array();	
 		
     /**
      * HttpClient constructor
