@@ -90,6 +90,13 @@ class HttpClient
      */
     protected $beforeRequest;
 
+	/**
+     * CURL or stream meta data options
+     *
+     * @var array
+     */
+    protected options = array();	
+		
     /**
      * HttpClient constructor
      *
@@ -267,7 +274,7 @@ class HttpClient
             $ch = curl_init();
             $requestHeaders = $this->buildHeaders($headers);
             $headers = [];
-            curl_setopt_array($ch, [
+            $options = [
                 CURLOPT_URL => trim($this->url),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => $this->timeout,
@@ -282,6 +289,19 @@ class HttpClient
                     return strlen($header);
                 }
             ]);
+
+			// The settings defined above will be replace if existing in options
+			$options = array_replace_recursive($options, $this->options);
+			
+			if ($this->debug) {
+				error_log(sprintf(
+					'==> CURL options: %s%s',
+					PHP_EOL,
+					json_encode($options, JSON_PRETTY_PRINT)
+				));
+			}
+			
+			curl_setopt_array($ch, $options);
 
             if ($this->sslLocalCert !== null) {
                 curl_setopt($ch, CURLOPT_CAINFO, $this->sslLocalCert);
@@ -364,6 +384,9 @@ class HttpClient
         if ($this->sslLocalCert !== null) {
             $options['ssl']['local_cert'] = $this->sslLocalCert;
         }
+
+		// The settings defined above will be replace if existing in options
+		$options = array_replace_recursive($options, $this->options);
 
         return stream_context_create($options);
     }
@@ -457,4 +480,17 @@ class HttpClient
         }
         return $headers;
     }
+	
+	/**
+	*	Set the CURL or stream meta data options
+	*   
+	*   @param array $options
+	*/
+	public function setOptions(array $options) {
+		if(is_array($options)) {
+			$this->options = $options;
+		} else {
+			$this->options = array();
+		}
+	}	
 }
