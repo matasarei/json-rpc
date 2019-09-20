@@ -288,7 +288,7 @@ class HttpClient
 
                     return strlen($header);
                 }
-            ]);
+            ];
 
 			// The settings defined above will be replace if existing in options
 			$options = array_replace_recursive($options, $this->options);
