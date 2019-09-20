@@ -1,7 +1,7 @@
 {
-    "name": "fguillot/json-rpc",
+    "name": "majuca/json-rpc",
     "description": "Simple Json-RPC client/server library that just works",
-    "homepage": "https://github.com/matasarei/JsonRPC",
+    "homepage": "https://github.com/majuca/JsonRPC",
     "type": "library",
     "license": "MIT",
     "authors": [
