@@ -4,7 +4,7 @@ namespace JsonRPC\Response;
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__.'/../../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 function header($value)
 {

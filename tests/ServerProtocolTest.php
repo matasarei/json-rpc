@@ -2,8 +2,8 @@
 
 use JsonRPC\Server;
 
-require_once __DIR__.'/../vendor/autoload.php';
-require_once __DIR__.'/Response/HeaderMockTest.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/Response/HeaderMockTest.php';
 
 class C
 {
@@ -63,8 +63,10 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
 
     public function testNotification()
     {
-        $update = function($p1, $p2, $p3, $p4, $p5) {};
-        $foobar = function() {};
+        $update = function ($p1, $p2, $p3, $p4, $p5) {
+        };
+        $foobar = function () {
+        };
 
         $server = new Server('{"jsonrpc": "2.0", "method": "update", "params": [1,2,3,4,5]}');
         $server->register('update', $update);
@@ -113,8 +115,8 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
     {
         $server = new Server('{"jsonrpc": "2.0", "method": "invalidresponse","id": 1}');
 
-        $invalidresponse = function() {
-            return pack("H*" ,'c32e');
+        $invalidresponse = function () {
+            return pack("H*", 'c32e');
         };
 
         $server->register('invalidresponse', $invalidresponse);
@@ -185,19 +187,19 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
             {"jsonrpc": "2.0", "method": "doStuff", "id": 15}
         ]');
 
-        $server->register('sum', function($a, $b, $c) {
+        $server->register('sum', function ($a, $b, $c) {
             return $a + $b + $c;
         });
 
-        $server->register('subtract', function($minuend, $subtrahend) {
+        $server->register('subtract', function ($minuend, $subtrahend) {
             return $minuend - $subtrahend;
         });
 
-        $server->register('get_data', function() {
+        $server->register('get_data', function () {
             return ['hello', 5];
         });
 
-        $server->attach(new C);
+        $server->attach(new C());
 
         $server->bind('doStuff', 'C', 'doSomething');
 
@@ -224,12 +226,10 @@ class ServerProtocolTest extends \JsonRPC\Response\HeaderMockTest
             {"jsonrpc": "2.0", "method": "notify_hello", "params": [7]}
         ]');
 
-        $server->register('notify_sum', function($a, $b, $c) {
-
+        $server->register('notify_sum', function ($a, $b, $c) {
         });
 
-        $server->register('notify_hello', function($id) {
-
+        $server->register('notify_hello', function ($id) {
         });
 
         $this->assertEquals('', $server->execute());

@@ -3,7 +3,7 @@
 use JsonRPC\Request\RequestBuilder;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__.'/../../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 class RequestBuilderTest extends TestCase
 {
@@ -50,5 +50,4 @@ class RequestBuilderTest extends TestCase
         $result = json_decode($payload, true);
         $this->assertNotNull($result['some-attr']);
     }
-
 }

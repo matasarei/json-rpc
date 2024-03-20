@@ -31,7 +31,7 @@ class HostValidator
             throw new AccessDeniedException('Access Forbidden');
         }
     }
-    
+
     /**
      * Validate remoteAddress match host
      *

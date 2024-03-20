@@ -4,7 +4,7 @@ namespace JsonRPC;
 
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__.'/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 defined('CURLOPT_URL') || define('CURLOPT_URL', 10002);
 defined('CURLOPT_RETURNTRANSFER') || define('CURLOPT_RETURNTRANSFER', 19913);
@@ -17,7 +17,8 @@ defined('CURLOPT_HTTPHEADER') || define('CURLOPT_HTTPHEADER', 10023);
 defined('CURLOPT_HEADERFUNCTION') || define('CURLOPT_HEADERFUNCTION', 20079);
 defined('CURLOPT_CAINFO') || define('CURLOPT_CAINFO', 10065);
 
-function extension_loaded($extension) {
+function extension_loaded($extension)
+{
     return HttpClientTest::$functions->extension_loaded($extension);
 }
 
@@ -31,27 +32,33 @@ function stream_context_create(array $params)
     return HttpClientTest::$functions->stream_context_create($params);
 }
 
-function curl_init() {
+function curl_init()
+{
     return HttpClientTest::$functions->curl_init();
 }
 
-function curl_setopt_array($ch, array $params) {
+function curl_setopt_array($ch, array $params)
+{
     HttpClientTest::$functions->curl_setopt_array($ch, $params);
 }
 
-function curl_setopt($ch, $option, $value) {
+function curl_setopt($ch, $option, $value)
+{
     HttpClientTest::$functions->curl_setopt($ch, $option, $value);
 }
 
-function curl_exec($ch) {
+function curl_exec($ch)
+{
     return HttpClientTest::$functions->curl_exec($ch);
 }
 
-function curl_close($ch) {
+function curl_close($ch)
+{
     HttpClientTest::$functions->curl_close($ch);
 }
 
-function curl_getinfo($ch, $option) {
+function curl_getinfo($ch, $option)
+{
     HttpClientTest::$functions->curl_getinfo($ch, $option);
 }
 
@@ -153,8 +160,8 @@ class HttpClientTest extends TestCase
             ->will($this->returnValue(false));
 
         $httpClient = new HttpClient('url');
-        $httpClient->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-            $client->withHeaders(['Content-Length: '.strlen($payload)]);
+        $httpClient->withBeforeRequestCallback(function (HttpClient $client, $payload) {
+            $client->withHeaders(['Content-Length: ' . strlen($payload)]);
         });
 
         $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
@@ -217,8 +224,8 @@ class HttpClientTest extends TestCase
         $httpClient = new HttpClient('url');
         $httpClient
             ->withSslLocalCert('test.crt')
-            ->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-                $client->withHeaders(['Content-Length: '.strlen($payload)]);
+            ->withBeforeRequestCallback(function (HttpClient $client, $payload) {
+                $client->withHeaders(['Content-Length: ' . strlen($payload)]);
             });
 
 

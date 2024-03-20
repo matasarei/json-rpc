@@ -143,7 +143,7 @@ class Client
     {
         $this->isBatch = false;
 
-        return $this->sendPayload('['.implode(', ', $this->batch).']');
+        return $this->sendPayload('[' . implode(', ', $this->batch) . ']');
     }
 
     /**

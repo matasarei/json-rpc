@@ -5,7 +5,7 @@ use JsonRPC\MiddlewareHandler;
 use JsonRPC\MiddlewareInterface;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__.'/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 class FirstMiddleware implements MiddlewareInterface
 {

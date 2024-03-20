@@ -145,7 +145,7 @@ class Server
     public function setAuthenticationHeader($header)
     {
         if (! empty($header)) {
-            $header = 'HTTP_'.str_replace('-', '_', strtoupper($header));
+            $header = 'HTTP_' . str_replace('-', '_', strtoupper($header));
             $value = $this->getServerVariable($header);
 
             if (! empty($value)) {
@@ -309,7 +309,6 @@ class Server
             ;
 
             $response = $this->parseRequest();
-
         } catch (Exception $e) {
             $response = $this->handleExceptions($e);
         }

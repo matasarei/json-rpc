@@ -86,7 +86,7 @@ class RequestParser
         } else {
             $this->localExceptions[] = $exception;
         }
-        
+
         return $this;
     }
 
@@ -126,7 +126,6 @@ class RequestParser
     public function parse()
     {
         try {
-
             JsonFormatValidator::validate($this->payload);
             RpcFormatValidator::validate($this->payload);
 

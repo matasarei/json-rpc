@@ -31,7 +31,7 @@ class BatchRequestParser extends RequestParser
         }
 
         $responses = array_filter($responses);
-        return empty($responses) ? '' : '['.implode(',', $responses).']';
+        return empty($responses) ? '' : '[' . implode(',', $responses) . ']';
     }
 
     /**

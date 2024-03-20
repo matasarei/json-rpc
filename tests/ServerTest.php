@@ -7,8 +7,8 @@ use JsonRPC\MiddlewareInterface;
 use JsonRPC\Response\HeaderMockTest;
 use JsonRPC\Server;
 
-require_once __DIR__.'/../vendor/autoload.php';
-require_once __DIR__.'/Response/HeaderMockTest.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/Response/HeaderMockTest.php';
 
 class MyException extends Exception
 {
@@ -68,7 +68,7 @@ class ServerTest extends HeaderMockTest
     public function testExecute()
     {
         $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             return $a + $b + $c;
         });
 
@@ -156,7 +156,7 @@ class ServerTest extends HeaderMockTest
     public function testWhenCallbackRaiseForbiddenException()
     {
         $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             throw new AccessDeniedException();
         });
 
@@ -171,7 +171,7 @@ class ServerTest extends HeaderMockTest
     public function testWhenCallbackRaiseUnauthorizedException()
     {
         $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             throw new AuthenticationFailureException();
         });
 
@@ -187,7 +187,7 @@ class ServerTest extends HeaderMockTest
     {
         $server = new Server($this->payload);
         $server->getMiddlewareHandler()->withMiddleware(new DummyMiddleware());
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b) {
             return $a + $b;
         });
 
@@ -203,7 +203,7 @@ class ServerTest extends HeaderMockTest
     {
         $server = new Server($this->payload);
         $server->withLocalException('MyException');
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             throw new MyException('test');
         });
 
@@ -214,7 +214,7 @@ class ServerTest extends HeaderMockTest
     public function testCustomExceptionAreRelayedToClient()
     {
         $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             throw new MyException('test');
         });
 
@@ -229,7 +229,7 @@ class ServerTest extends HeaderMockTest
     public function testCustomResponseException()
     {
         $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function($a, $b, $c) {
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
             throw new ResponseException('test', 123, null, 'more info');
         });
 

@@ -206,7 +206,7 @@ class ProcedureHandler
      */
     public function executeMethod($class, $method, $params)
     {
-        $instance = is_string($class) ? new $class : $class;
+        $instance = is_string($class) ? new $class() : $class;
         $reflection = new ReflectionMethod($class, $method);
 
         $this->executeBeforeMethod($instance, $method);
@@ -295,13 +295,13 @@ class ProcedureHandler
             } elseif ($p->isDefaultValueAvailable()) {
                 $params[$name] = $p->getDefaultValue();
             } else {
-                throw new InvalidArgumentException('Missing argument: '.$name);
+                throw new InvalidArgumentException('Missing argument: ' . $name);
             }
         }
 
         if ($undefinedRequestParams = array_diff_key($requestParams, $params)) {
             throw new InvalidArgumentException(
-                'Undefined arguments: '.implode(', ', array_keys($undefinedRequestParams))
+                'Undefined arguments: ' . implode(', ', array_keys($undefinedRequestParams))
             );
         }
 

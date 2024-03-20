@@ -453,7 +453,7 @@ class HttpClient
             return;
         }
 
-        $errors = array_filter($headers, function($value) {
+        $errors = array_filter($headers, function ($value) {
             return preg_match('/HTTP.*[4-5]\d{2}\s\w/', $value);
         });
 

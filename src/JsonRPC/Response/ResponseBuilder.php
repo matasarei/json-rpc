@@ -226,7 +226,7 @@ class ResponseBuilder
         }
 
         foreach ($this->headers as $name => $value) {
-            header($name.': '.$value);
+            header($name . ': ' . $value);
         }
 
         return $this;

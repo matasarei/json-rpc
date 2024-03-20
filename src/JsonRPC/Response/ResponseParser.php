@@ -122,13 +122,13 @@ class ResponseParser
     {
         switch ($this->payload['error']['code']) {
             case -32700:
-                throw new InvalidJsonFormatException('Parse error: '.$this->payload['error']['message']);
+                throw new InvalidJsonFormatException('Parse error: ' . $this->payload['error']['message']);
             case -32600:
-                throw new InvalidJsonRpcFormatException('Invalid Request: '.$this->payload['error']['message']);
+                throw new InvalidJsonRpcFormatException('Invalid Request: ' . $this->payload['error']['message']);
             case -32601:
-                throw new BadFunctionCallException('Procedure not found: '.$this->payload['error']['message']);
+                throw new BadFunctionCallException('Procedure not found: ' . $this->payload['error']['message']);
             case -32602:
-                throw new InvalidArgumentException('Invalid arguments: '.$this->payload['error']['message']);
+                throw new InvalidArgumentException('Invalid arguments: ' . $this->payload['error']['message']);
             default:
                 throw new ResponseException(
                     $this->payload['error']['message'],
