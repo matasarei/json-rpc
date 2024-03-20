@@ -59,7 +59,7 @@ class HttpClientTest extends TestCase
 {
     public static $functions;
 
-    public function setUp()
+    protected function setUp(): void
     {
         self::$functions = $this
             ->getMockBuilder('stdClass')
