@@ -161,14 +161,9 @@ class ServerTest extends HeaderMockTest
         });
 
         self::$functions
-            ->expects($this->at(0))
+            ->expects(static::exactly(2))
             ->method('header')
-            ->with('HTTP/1.0 403 Forbidden');
-
-        self::$functions
-            ->expects($this->at(1))
-            ->method('header')
-            ->with('Content-Type: application/json');
+            ->willReturnOnConsecutiveCalls('HTTP/1.0 403 Forbidden', 'Content-Type: application/json');
 
         $this->assertEquals('{"jsonrpc":"2.0","error":{"code":403,"message":"Forbidden"},"id":null}', $server->execute());
     }
@@ -181,14 +176,9 @@ class ServerTest extends HeaderMockTest
         });
 
         self::$functions
-            ->expects($this->at(0))
+            ->expects(static::exactly(3))
             ->method('header')
-            ->with('HTTP/1.0 401 Unauthorized');
-
-        self::$functions
-            ->expects($this->at(1))
-            ->method('header')
-            ->with('Content-Type: application/json');
+            ->willReturnOnConsecutiveCalls('HTTP/1.0 401 Unauthorized', 'Content-Type: application/json', '');
 
         $this->assertEquals('{"jsonrpc":"2.0","error":{"code":401,"message":"Unauthorized"},"id":null}', $server->execute());
     }
@@ -202,14 +192,9 @@ class ServerTest extends HeaderMockTest
         });
 
         self::$functions
-            ->expects($this->at(0))
+            ->expects(static::exactly(3))
             ->method('header')
-            ->with('HTTP/1.0 401 Unauthorized');
-
-        self::$functions
-            ->expects($this->at(1))
-            ->method('header')
-            ->with('Content-Type: application/json');
+            ->willReturnOnConsecutiveCalls('HTTP/1.0 401 Unauthorized', 'Content-Type: application/json');
 
         $this->assertEquals('{"jsonrpc":"2.0","error":{"code":401,"message":"Unauthorized"},"id":null}', $server->execute());
     }

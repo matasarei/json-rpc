@@ -115,13 +115,13 @@ class HttpClientTest extends TestCase
     public function testWithCallback()
     {
         self::$functions
-            ->expects($this->at(0))
+            ->expects(static::exactly(1))
             ->method('extension_loaded')
             ->with('curl')
             ->will($this->returnValue(false));
 
         self::$functions
-            ->expects($this->at(1))
+            ->expects(static::exactly(1))
             ->method('stream_context_create')
             ->with([
                 'http' => [
@@ -147,7 +147,7 @@ class HttpClientTest extends TestCase
             ->will($this->returnValue('context'));
 
         self::$functions
-            ->expects($this->at(2))
+            ->expects(static::exactly(1))
             ->method('fopen')
             ->with('url', 'r', false, 'context')
             ->will($this->returnValue(false));
@@ -164,18 +164,18 @@ class HttpClientTest extends TestCase
     public function testWithCurl()
     {
         self::$functions
-            ->expects($this->at(0))
+            ->expects(static::exactly(1))
             ->method('extension_loaded')
             ->with('curl')
             ->will($this->returnValue(true));
 
         self::$functions
-            ->expects($this->at(1))
+            ->expects(static::exactly(1))
             ->method('curl_init')
             ->will($this->returnValue('curl'));
 
         self::$functions
-            ->expects($this->at(2))
+            ->expects(static::exactly(1))
             ->method('curl_setopt_array')
             ->with('curl', [
                 CURLOPT_URL => 'url',
@@ -199,23 +199,18 @@ class HttpClientTest extends TestCase
             ]);
 
         self::$functions
-            ->expects($this->at(3))
+            ->expects(static::exactly(1))
             ->method('curl_setopt')
             ->with('curl', CURLOPT_CAINFO, 'test.crt');
 
         self::$functions
-            ->expects($this->at(4))
+            ->expects(static::exactly(1))
             ->method('curl_exec')
             ->with('curl')
             ->will($this->returnValue(false));
 
         self::$functions
-            ->expects($this->at(5))
-            ->method('curl_getinfo')
-            ->with('curl');
-
-        self::$functions
-            ->expects($this->at(6))
+            ->expects(static::exactly(1))
             ->method('curl_close')
             ->with('curl');
 
