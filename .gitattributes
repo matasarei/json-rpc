@@ -1,8 +1,7 @@
-tests/ export-ignore
-vendor/ export-ignore
-.gitattributes export-ignore
-.gitignore export-ignore
-.travis.yml export-ignore
-composer.* export-ignore
-phpunit.xml export-ignore
-README.* export-ignore
+tests/			export-ignore
+.gitattributes	export-ignore
+.gitignore		export-ignore
+.phpcs.xml		export-ignore
+composer.*		export-ignore
+phpunit.xml		export-ignore
+README.*		export-ignore
