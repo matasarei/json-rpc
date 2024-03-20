@@ -31,6 +31,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: php-actions/composer@v6
+        with:
+          php_version: 8.2
       - name: Check PHP coding standard
         run: vendor/bin/phpcs
   # run PHP unit tests
