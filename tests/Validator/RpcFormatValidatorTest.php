@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Validator\RpcFormatValidator;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class RpcFormatValidatorTest extends PHPUnit_Framework_TestCase
+class RpcFormatValidatorTest extends TestCase
 {
     public function testWithMinimumRequirement()
     {

@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Response\ResponseParser;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class ResponseParserTest extends PHPUnit_Framework_TestCase
+class ResponseParserTest extends TestCase
 {
     public function testSingleRequest()
     {

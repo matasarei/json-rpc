@@ -7,10 +7,11 @@ use JsonRPC\Exception\InvalidJsonRpcFormatException;
 use JsonRPC\Exception\ResponseEncodingFailureException;
 use JsonRPC\Exception\ResponseException;
 use JsonRPC\Response\ResponseBuilder;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class ResponseBuilderTest extends PHPUnit_Framework_TestCase
+class ResponseBuilderTest extends TestCase
 {
     public function testBuildResponse()
     {

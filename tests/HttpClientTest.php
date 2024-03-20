@@ -2,6 +2,8 @@
 
 namespace JsonRPC;
 
+use PHPUnit\Framework\TestCase;
+
 require_once __DIR__.'/../vendor/autoload.php';
 
 defined('CURLOPT_URL') || define('CURLOPT_URL', 10002);
@@ -53,7 +55,7 @@ function curl_getinfo($ch, $option) {
     HttpClientTest::$functions->curl_getinfo($ch, $option);
 }
 
-class HttpClientTest extends \PHPUnit_Framework_TestCase
+class HttpClientTest extends TestCase
 {
     public static $functions;
 

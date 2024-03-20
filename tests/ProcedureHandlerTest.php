@@ -1,6 +1,7 @@
 <?php
 
 use JsonRPC\ProcedureHandler;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../vendor/autoload.php';
 
@@ -35,7 +36,7 @@ class ClassWithBeforeMethod
     }
 }
 
-class ProcedureHandlerTest extends PHPUnit_Framework_TestCase
+class ProcedureHandlerTest extends TestCase
 {
     public function testProcedureNotFound()
     {

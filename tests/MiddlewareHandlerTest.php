@@ -3,6 +3,7 @@
 use JsonRPC\Exception\AuthenticationFailureException;
 use JsonRPC\MiddlewareHandler;
 use JsonRPC\MiddlewareInterface;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../vendor/autoload.php';
 
@@ -23,7 +24,7 @@ class SecondMiddleware implements MiddlewareInterface
     }
 }
 
-class MiddlewareHandlerTest extends PHPUnit_Framework_TestCase
+class MiddlewareHandlerTest extends TestCase
 {
     public function testMiddlewareCanRaiseException()
     {

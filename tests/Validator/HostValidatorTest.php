@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Validator\HostValidator;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class HostValidatorTest extends PHPUnit_Framework_TestCase
+class HostValidatorTest extends TestCase
 {
     public function testWithEmptyHosts()
     {

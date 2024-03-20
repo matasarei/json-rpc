@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Request\RequestBuilder;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class RequestBuilderTest extends PHPUnit_Framework_TestCase
+class RequestBuilderTest extends TestCase
 {
     public function testBuilder()
     {

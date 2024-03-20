@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Validator\JsonEncodingValidator;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../../vendor/autoload.php';
 
-class JsonEncodingValidatorTest extends PHPUnit_Framework_TestCase
+class JsonEncodingValidatorTest extends TestCase
 {
     public function testWithValidJson()
     {

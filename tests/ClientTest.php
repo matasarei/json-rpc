@@ -1,10 +1,11 @@
 <?php
 
 use JsonRPC\Client;
+use PHPUnit\Framework\TestCase;
 
 require_once __DIR__.'/../vendor/autoload.php';
 
-class ClientTest extends PHPUnit_Framework_TestCase
+class ClientTest extends TestCase
 {
     private $httpClient;
 
