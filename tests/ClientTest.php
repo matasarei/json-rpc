@@ -78,7 +78,7 @@ class ClientTest extends TestCase
                 ],
             ]));
 
-        $this->setExpectedException('BadFunctionCallException');
+        $this->expectException('BadFunctionCallException');
         $client->execute('methodA', ['a' => 'b']);
     }
 

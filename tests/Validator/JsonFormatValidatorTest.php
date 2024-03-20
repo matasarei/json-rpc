@@ -14,7 +14,7 @@ class JsonFormatValidatorTest extends TestCase
 
     public function testJsonNotParsedCorrectly()
     {
-        $this->setExpectedException('\JsonRPC\Exception\InvalidJsonFormatException');
+        $this->expectException('\JsonRPC\Exception\InvalidJsonFormatException');
         JsonFormatValidator::validate('');
     }
 }

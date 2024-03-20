@@ -19,7 +19,7 @@ class UserValidatorTest extends TestCase
 
     public function testWithNotAuthorizedHosts()
     {
-        $this->setExpectedException('\JsonRPC\Exception\AuthenticationFailureException');
+        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
         UserValidator::validate(['user' => 'pass'], 'user', 'wrong password');
     }
 }

@@ -18,7 +18,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithBadJsonFormat()
     {
-        $this->setExpectedException('\JsonRPC\Exception\InvalidJsonFormatException');
+        $this->expectException('\JsonRPC\Exception\InvalidJsonFormatException');
 
         ResponseParser::create()
             ->withPayload('foobar')
@@ -27,7 +27,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithBadProcedure()
     {
-        $this->setExpectedException('BadFunctionCallException');
+        $this->expectException('BadFunctionCallException');
 
         ResponseParser::create()
             ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}', true))
@@ -36,7 +36,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithInvalidArgs()
     {
-        $this->setExpectedException('InvalidArgumentException');
+        $this->expectException('InvalidArgumentException');
 
         ResponseParser::create()
             ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}', true))
@@ -45,7 +45,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithInvalidRequest()
     {
-        $this->setExpectedException('\JsonRPC\Exception\InvalidJsonRpcFormatException');
+        $this->expectException('\JsonRPC\Exception\InvalidJsonRpcFormatException');
 
         ResponseParser::create()
             ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true))
@@ -54,7 +54,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithParseError()
     {
-        $this->setExpectedException('\JsonRPC\Exception\InvalidJsonFormatException');
+        $this->expectException('\JsonRPC\Exception\InvalidJsonFormatException');
 
         ResponseParser::create()
             ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}', true))
@@ -63,7 +63,7 @@ class ResponseParserTest extends TestCase
 
     public function testWithOtherError()
     {
-        $this->setExpectedException('\JsonRPC\Exception\ResponseException');
+        $this->expectException('\JsonRPC\Exception\ResponseException');
 
         ResponseParser::create()
             ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": 42, "message": "Something", "data": "foobar"}, "id": null}', true))
@@ -92,7 +92,7 @@ class ResponseParserTest extends TestCase
             {"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}
         ]';
 
-        $this->setExpectedException('InvalidArgumentException');
+        $this->expectException('InvalidArgumentException');
 
         ResponseParser::create()
             ->withPayload(json_decode($payload, true))

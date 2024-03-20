@@ -72,7 +72,7 @@ class HttpClientTest extends TestCase
 
     public function testWithServerError()
     {
-        $this->setExpectedException('\JsonRPC\Exception\ServerErrorException');
+        $this->expectException('\JsonRPC\Exception\ServerErrorException');
 
         $httpClient = new HttpClient();
         $httpClient->handleExceptions([
@@ -84,7 +84,7 @@ class HttpClientTest extends TestCase
 
     public function testWithConnectionFailure()
     {
-        $this->setExpectedException('\JsonRPC\Exception\ConnectionFailureException');
+        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
 
         $httpClient = new HttpClient();
         $httpClient->handleExceptions([
@@ -94,7 +94,7 @@ class HttpClientTest extends TestCase
 
     public function testWithAccessForbidden()
     {
-        $this->setExpectedException('\JsonRPC\Exception\AccessDeniedException');
+        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
 
         $httpClient = new HttpClient();
         $httpClient->handleExceptions([
@@ -104,7 +104,7 @@ class HttpClientTest extends TestCase
 
     public function testWithAccessNotAllowed()
     {
-        $this->setExpectedException('\JsonRPC\Exception\AccessDeniedException');
+        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
 
         $httpClient = new HttpClient();
         $httpClient->handleExceptions([
@@ -157,7 +157,7 @@ class HttpClientTest extends TestCase
             $client->withHeaders(['Content-Length: '.strlen($payload)]);
         });
 
-        $this->setExpectedException('\JsonRPC\Exception\ConnectionFailureException');
+        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
         $httpClient->execute('test');
     }
 
@@ -227,7 +227,7 @@ class HttpClientTest extends TestCase
             });
 
 
-        $this->setExpectedException('\JsonRPC\Exception\ConnectionFailureException');
+        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
         $httpClient->execute('test');
     }
 }

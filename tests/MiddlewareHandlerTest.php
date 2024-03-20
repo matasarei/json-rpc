@@ -28,7 +28,7 @@ class MiddlewareHandlerTest extends TestCase
 {
     public function testMiddlewareCanRaiseException()
     {
-        $this->setExpectedException('JsonRpc\Exception\AuthenticationFailureException');
+        $this->expectException('JsonRpc\Exception\AuthenticationFailureException');
 
         $middlewareHandler = new MiddlewareHandler();
         $middlewareHandler->withUsername('myUsername');
