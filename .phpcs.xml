@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<ruleset name="PSR12-src">
+    <description>PSR12 programming standard</description>
+    <!-- display progress -->
+    <arg value="p"/>
+    <arg value="n"/>
+    <arg value="s"/>
+    <!-- directories and files to check -->
+    <file>./src</file>
+    <file>./tests</file>
+    <!-- Use PSR12 as a standard -->
+    <rule ref="PSR12">
+        <exclude name="PSR1.Classes.ClassDeclaration.MissingNamespace"/>
+        <exclude name="PSR1.Classes.ClassDeclaration.MultipleClasses"/>
+        <exclude name="PSR1.Methods.CamelCapsMethodName.NotCamelCaps"/>
+        <exclude-pattern>src/*</exclude-pattern>
+    </rule>
+    <rule ref="PSR12">
+        <exclude-pattern>tests/*</exclude-pattern>
+    </rule>
+</ruleset>
