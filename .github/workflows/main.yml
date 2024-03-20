@@ -25,6 +25,14 @@ jobs:
       - uses: actions/checkout@v3
       - name: Check PHP syntax
         run: php -l src/ tests/
+  # PHP coding standard validation
+  phpcs:
+    name: PHP coding standard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check PHP coding standard
+        run: vendor/bin/phpcs
   # run PHP unit tests
   phpunit:
     name: PHPUnit tests
