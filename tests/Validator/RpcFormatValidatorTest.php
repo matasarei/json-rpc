@@ -9,7 +9,7 @@ class RpcFormatValidatorTest extends TestCase
 {
     public function testWithMinimumRequirement()
     {
-        $this->assertNull(RpcFormatValidator::validate(array('jsonrpc' => '2.0', 'method' => 'foobar')));
+        $this->assertNull(RpcFormatValidator::validate(['jsonrpc' => '2.0', 'method' => 'foobar']));
     }
 
     public function testWithNoVersion()

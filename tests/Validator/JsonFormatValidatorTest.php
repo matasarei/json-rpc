@@ -9,7 +9,7 @@ class JsonFormatValidatorTest extends TestCase
 {
     public function testJsonParsedCorrectly()
     {
-        $this->assertNull(JsonFormatValidator::validate(array('foobar')));
+        $this->assertNull(JsonFormatValidator::validate(['foobar']));
     }
 
     public function testJsonNotParsedCorrectly()

@@ -81,7 +81,7 @@ class ResponseParserTest extends TestCase
             ->withPayload(json_decode($payload, true))
             ->parse();
 
-        $this->assertEquals(array(7, 19), $result);
+        $this->assertEquals([7, 19], $result);
     }
 
     public function testBatchWithError()

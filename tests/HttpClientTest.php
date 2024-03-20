@@ -75,11 +75,11 @@ class HttpClientTest extends TestCase
         $this->setExpectedException('\JsonRPC\Exception\ServerErrorException');
 
         $httpClient = new HttpClient();
-        $httpClient->handleExceptions(array(
+        $httpClient->handleExceptions([
             'HTTP/1.0 301 Moved Permanently',
             'Connection: close',
             'HTTP/1.1 500 Internal Server Error',
-        ));
+                                      ]);
     }
 
     public function testWithConnectionFailure()
@@ -87,9 +87,9 @@ class HttpClientTest extends TestCase
         $this->setExpectedException('\JsonRPC\Exception\ConnectionFailureException');
 
         $httpClient = new HttpClient();
-        $httpClient->handleExceptions(array(
+        $httpClient->handleExceptions([
             'HTTP/1.1 404 Not Found',
-        ));
+                                      ]);
     }
 
     public function testWithAccessForbidden()
@@ -97,9 +97,9 @@ class HttpClientTest extends TestCase
         $this->setExpectedException('\JsonRPC\Exception\AccessDeniedException');
 
         $httpClient = new HttpClient();
-        $httpClient->handleExceptions(array(
+        $httpClient->handleExceptions([
             'HTTP/1.1 403 Forbidden',
-        ));
+                                      ]);
     }
 
     public function testWithAccessNotAllowed()
@@ -107,9 +107,9 @@ class HttpClientTest extends TestCase
         $this->setExpectedException('\JsonRPC\Exception\AccessDeniedException');
 
         $httpClient = new HttpClient();
-        $httpClient->handleExceptions(array(
+        $httpClient->handleExceptions([
             'HTTP/1.0 401 Unauthorized',
-        ));
+                                      ]);
     }
 
     public function testWithCallback()
@@ -154,7 +154,7 @@ class HttpClientTest extends TestCase
 
         $httpClient = new HttpClient('url');
         $httpClient->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-            $client->withHeaders(array('Content-Length: '.strlen($payload)));
+            $client->withHeaders(['Content-Length: '.strlen($payload)]);
         });
 
         $this->setExpectedException('\JsonRPC\Exception\ConnectionFailureException');
@@ -223,7 +223,7 @@ class HttpClientTest extends TestCase
         $httpClient
             ->withSslLocalCert('test.crt')
             ->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-                $client->withHeaders(array('Content-Length: '.strlen($payload)));
+                $client->withHeaders(['Content-Length: '.strlen($payload)]);
             });
 
 

@@ -13,7 +13,7 @@ class ClientTest extends TestCase
     {
         $this->httpClient = $this
             ->getMockBuilder('\JsonRPC\HttpClient')
-            ->setMethods(array('execute'))
+            ->setMethods(['execute'])
             ->getMock();
     }
 
@@ -45,7 +45,7 @@ class ClientTest extends TestCase
             ->execute('methodB', ['a' => 'b'])
             ->send();
 
-        $this->assertEquals(array('c', 'd'), $result);
+        $this->assertEquals(['c', 'd'], $result);
     }
 
     public function testSendRequest()
@@ -56,7 +56,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue(array('jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1)));
+            ->will($this->returnValue(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
 
         $result = $client->execute('methodA', ['a' => 'b']);
         $this->assertEquals($result, 'foobar');

@@ -12,7 +12,7 @@ class RequestBuilderTest extends TestCase
         $payload = RequestBuilder::create()
             ->withId(123)
             ->withProcedure('foobar')
-            ->withParams(array(1, 2, 3))
+            ->withParams([1, 2, 3])
             ->build();
 
         $this->assertEquals('{"jsonrpc":"2.0","method":"foobar","id":123,"params":[1,2,3]}', $payload);
@@ -32,7 +32,7 @@ class RequestBuilderTest extends TestCase
     {
         $payload = RequestBuilder::create()
             ->withProcedure('foobar')
-            ->withParams(array(1, 2, 3))
+            ->withParams([1, 2, 3])
             ->build();
 
         $result = json_decode($payload, true);
@@ -43,8 +43,8 @@ class RequestBuilderTest extends TestCase
     {
         $payload = RequestBuilder::create()
             ->withProcedure('foobar')
-            ->withParams(array(1, 2, 3))
-            ->withRequestAttributes(array("some-attr" => 42))
+            ->withParams([1, 2, 3])
+            ->withRequestAttributes(["some-attr" => 42])
             ->build();
 
         $result = json_decode($payload, true);

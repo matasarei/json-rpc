@@ -9,17 +9,17 @@ class UserValidatorTest extends TestCase
 {
     public function testWithEmptyHosts()
     {
-        $this->assertNull(UserValidator::validate(array(), 'user', 'pass'));
+        $this->assertNull(UserValidator::validate([], 'user', 'pass'));
     }
 
     public function testWithValidHosts()
     {
-        $this->assertNull(UserValidator::validate(array('user' => 'pass'), 'user', 'pass'));
+        $this->assertNull(UserValidator::validate(['user' => 'pass'], 'user', 'pass'));
     }
 
     public function testWithNotAuthorizedHosts()
     {
         $this->setExpectedException('\JsonRPC\Exception\AuthenticationFailureException');
-        UserValidator::validate(array('user' => 'pass'), 'user', 'wrong password');
+        UserValidator::validate(['user' => 'pass'], 'user', 'wrong password');
     }
 }

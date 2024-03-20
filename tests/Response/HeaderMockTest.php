@@ -19,7 +19,7 @@ abstract class HeaderMockTest extends TestCase
     {
         self::$functions = $this
             ->getMockBuilder('stdClass')
-            ->setMethods(array('header'))
+            ->setMethods(['header'])
             ->getMock();
     }
 }
