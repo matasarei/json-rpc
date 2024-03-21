@@ -1,9 +1,10 @@
-JsonRPC PHP Client and Server
+JSON-RPC PHP Client and Server
 =============================
 
-A simple Json-RPC client/server that just works.
+A simple JSON-RPC client/server that just works.
 
-Complete fork of `fguillot/JsonRPC` with latest changes.
+This is fork of `matasarei/JsonRPC` which in turn is a fork of 
+`fguillot/JsonRPC`.
 
 Features
 --------
@@ -13,7 +14,7 @@ Features
 - Authentication and IP based client restrictions
 - Custom Middleware
 - Fully unit tested
-- Requirements: PHP >= 5.4
+- Requirements: PHP >= 7.4
 - License: MIT
 
 Author
@@ -24,14 +25,9 @@ Frédéric Guillot
 Installation with Composer
 --------------------------
 
-For PHP >= 5.4
+For PHP >= 7.4
 ```bash
-composer require fguillot/json-rpc
-```
-
-For PHP 5.3 (last supported version):
-```bash
-composer require fguillot/json-rpc 1.2.5
+composer require kba-team/json-rpc
 ```
 
 Running Test Cases
