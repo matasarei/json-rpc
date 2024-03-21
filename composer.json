@@ -1,7 +1,7 @@
 {
-  "name": "fguillot/json-rpc",
-  "description": "Simple Json-RPC client/server library that just works",
-  "homepage": "https://github.com/matasarei/JsonRPC",
+  "name": "kba-team/json-rpc",
+  "description": "Simple JSON-RPC client/server library that just works",
+  "homepage": "https://github.com/the-kbA-team/json-rpc/",
   "type": "library",
   "license": "MIT",
   "authors": [
