@@ -15,10 +15,11 @@ Features
 - Fully unit tested
 - License: MIT
 
-Author
+Contributors
 ------
+[Frédéric Guillot](https://github.com/fguillot) and many others:
 
-Frédéric Guillot
+![Contributors](https://contrib.rocks/image?repo=matasarei/json-rpc)
 
 Installation with Composer
 --------------------------
