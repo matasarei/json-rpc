@@ -1,6 +1,8 @@
 JSON-RPC PHP Client and Server
 =============================
 
+![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)
+
 A simple JSON-RPC client/server that just works.
 
 Features
