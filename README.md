@@ -3,8 +3,6 @@ JSON-RPC PHP Client and Server
 
 A simple JSON-RPC client/server that just works.
 
-Complete fork of `fguillot/JsonRPC` with community fixes and improvements.
-
 Features
 --------
 
@@ -29,7 +27,7 @@ composer require fguillot/json-rpc
 Examples
 --------
 ### Symfony
-https://github.com/matasarei/json-rpc-demo
+* https://github.com/matasarei/json-rpc-demo
 
 
 ### Server
