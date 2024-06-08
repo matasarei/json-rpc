@@ -3,8 +3,7 @@ JSON-RPC PHP Client and Server
 
 A simple JSON-RPC client/server that just works.
 
-This is fork of `matasarei/JsonRPC` which in turn is a fork of 
-`fguillot/JsonRPC`.
+Complete fork of `fguillot/JsonRPC` with community fixes and improvements.
 
 Features
 --------
@@ -14,7 +13,6 @@ Features
 - Authentication and IP based client restrictions
 - Custom Middleware
 - Fully unit tested
-- Requirements: PHP >= 7.4
 - License: MIT
 
 Author
@@ -24,21 +22,15 @@ Frédéric Guillot
 
 Installation with Composer
 --------------------------
-
-For PHP >= 7.4
 ```bash
-composer require kba-team/json-rpc
+composer require fguillot/json-rpc
 ```
-
-Running Test Cases
---------
-1. Clone the repo
-2. `cd JsonRPC`
-3. Run composer: `composer install`
-4. Run tests: `vendor/bin/phpunit`
 
 Examples
 --------
+### Symfony
+https://github.com/matasarei/json-rpc-demo
+
 
 ### Server
 
@@ -69,11 +61,11 @@ Callback binding from array:
 
 use JsonRPC\Server;
 
-$callbacks = array(
+$callbacks = [
     'getA' => function() { return 'A'; },
     'getB' => function() { return 'B'; },
     'getC' => function() { return 'C'; }
-);
+];
 
 $server = new Server();
 $server->getProcedureHandler()->withCallbackArray($callbacks);
@@ -144,12 +136,12 @@ class MathApi
     }
 }
 
-$callbacks = array(
-    'addition'       => array( 'MathApi', addition ),
-    'subtraction'    => array( 'MathApi', subtraction ),
-    'multiplication' => array( 'MathApi', multiplication ),
-    'division'       => array( 'MathApi', division )
-);
+$callbacks = [
+    'addition'       => [ 'MathApi', addition ],
+    'subtraction'    => [ 'MathApi', subtraction ],
+    'multiplication' => [ 'MathApi', multiplication ,
+    'division'       => [ 'MathApi', division ],
+];
 
 $server = new Server();
 $server->getProcedureHandler()->withClassAndMethodArray($callbacks);
@@ -291,7 +283,7 @@ You can configure the log destination in your `php.ini`.
 
 Output example:
 
-```json
+```
 ==> Request:
 {
     "jsonrpc": "2.0",
@@ -323,7 +315,7 @@ $server = new Server;
 // IP client restrictions
 $server->allowHosts(['192.168.0.1', '127.0.0.1']);
 
-[...]
+...
 
 // Return the response to the client
 echo $server->execute();
@@ -345,7 +337,7 @@ $server = new Server;
 // List of users to allow
 $server->authentication(['user1' => 'password1', 'user2' => 'password2']);
 
-[...]
+...
 
 // Return the response to the client
 echo $server->execute();
@@ -400,7 +392,7 @@ $server
     ->withLocalException('MyException2')
 ;
 
-[...]
+...
 
 echo $server->execute();
 ```
@@ -416,7 +408,7 @@ Example:
 
 $client = new Client();
 $client->getHttpClient()->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-    $client->withHeaders(array('Content-Length: '.strlen($payload)));
+    $client->withHeaders(['Content-Length: '.strlen($payload)]);
 });
 
 $client->myProcedure(123);
