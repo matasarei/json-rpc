@@ -51,11 +51,11 @@ class Client
     private $httpClient;
 
     /**
-     * @param  string      $url               Server URL
-     * @param  bool        $returnException   Return exceptions
-     * @param  HttpClient  $httpClient        HTTP client object
+     * @param string $url Server URL
+     * @param bool $returnException Return exceptions
+     * @param HttpClient|null $httpClient HTTP client object
      */
-    public function __construct($url = '', $returnException = false, HttpClient $httpClient = null)
+    public function __construct($url = '', $returnException = false, ?HttpClient $httpClient = null)
     {
         $this->httpClient = $httpClient ?: new HttpClient($url);
         $this->returnException = $returnException;

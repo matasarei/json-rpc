@@ -104,22 +104,22 @@ class Server
     protected $batchRequestParser;
 
     /**
-     * @param  string              $request
-     * @param  array               $server
-     * @param  ResponseBuilder     $responseBuilder
-     * @param  RequestParser       $requestParser
-     * @param  BatchRequestParser  $batchRequestParser
-     * @param  ProcedureHandler    $procedureHandler
-     * @param  MiddlewareHandler   $middlewareHandler
+     * @param string $request
+     * @param array $server
+     * @param ResponseBuilder|null $responseBuilder
+     * @param RequestParser|null $requestParser
+     * @param BatchRequestParser|null $batchRequestParser
+     * @param ProcedureHandler|null $procedureHandler
+     * @param MiddlewareHandler|null $middlewareHandler
      */
     public function __construct(
         $request = '',
         array $server = [],
-        ResponseBuilder $responseBuilder = null,
-        RequestParser $requestParser = null,
-        BatchRequestParser $batchRequestParser = null,
-        ProcedureHandler $procedureHandler = null,
-        MiddlewareHandler $middlewareHandler = null
+        ?ResponseBuilder $responseBuilder = null,
+        ?RequestParser $requestParser = null,
+        ?BatchRequestParser $batchRequestParser = null,
+        ?ProcedureHandler $procedureHandler = null,
+        ?MiddlewareHandler $middlewareHandler = null
     ) {
         if ($request !== '') {
             $this->payload = json_decode($request, true);
@@ -149,7 +149,7 @@ class Server
             $value = $this->getServerVariable($header);
 
             if (! empty($value)) {
-                list($this->username, $this->password) = explode(':', base64_decode($value));
+                [$this->username, $this->password] = explode(':', base64_decode($value));
             }
         }
 

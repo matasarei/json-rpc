@@ -21,12 +21,12 @@ class ResponseException extends RpcCallFailedException
     protected $data;
 
     /**
-     * @param string    $message  [optional] The Exception message to throw.
-     * @param int       $code     [optional] The Exception code.
-     * @param Exception $previous [optional] The previous exception used for the exception chaining. Since 5.3.0
-     * @param mixed     $data     [optional] A value that contains additional information about the error.
+     * @param string $message [optional] The Exception message to throw.
+     * @param int $code [optional] The Exception code.
+     * @param Exception|null $previous [optional] The previous exception used for the exception chaining. Since 5.3.0
+     * @param mixed $data [optional] A value that contains additional information about the error.
      */
-    public function __construct($message = '', $code = 0, Exception $previous = null, $data = null)
+    public function __construct($message = '', $code = 0, ?Exception $previous = null, $data = null)
     {
         parent::__construct($message, $code, $previous);
         $this->setData($data);
