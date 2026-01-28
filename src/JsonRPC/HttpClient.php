@@ -310,7 +310,6 @@ class HttpClient
             }
 
             $response = curl_exec($ch);
-            curl_close($ch);
 
             if (false === $response) {
                 throw new ConnectionFailureException('Unable to establish a connection');
