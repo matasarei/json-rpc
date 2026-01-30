@@ -52,11 +52,6 @@ function curl_exec($ch)
     return HttpClientTest::$functions->curl_exec($ch);
 }
 
-function curl_close($ch)
-{
-    HttpClientTest::$functions->curl_close($ch);
-}
-
 function curl_getinfo($ch, $option)
 {
     HttpClientTest::$functions->curl_getinfo($ch, $option);
@@ -72,7 +67,7 @@ class HttpClientTest extends TestCase
             ->getMockBuilder('stdClass')
             ->setMethods([
                 'extension_loaded', 'fopen', 'stream_context_create', 'curl_getinfo',
-                'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec', 'curl_close'
+                'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec',
             ])
             ->getMock();
     }
@@ -215,11 +210,6 @@ class HttpClientTest extends TestCase
             ->method('curl_exec')
             ->with('curl')
             ->will($this->returnValue(false));
-
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_close')
-            ->with('curl');
 
         $httpClient = new HttpClient('url');
         $httpClient

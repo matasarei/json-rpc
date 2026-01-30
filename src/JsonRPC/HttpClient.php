@@ -311,11 +311,6 @@ class HttpClient
 
             $response = curl_exec($ch);
 
-            if (PHP_VERSION_ID < 80000) {
-                // Before PHP 8.0: cURL handle is a resource and should be explicitly closed
-                curl_close($ch);
-            }
-
             if (false === $response) {
                 throw new ConnectionFailureException('Unable to establish a connection');
             }
