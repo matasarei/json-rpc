@@ -146,6 +146,6 @@ class ResponseParser
      */
     private function isBatchResponse()
     {
-        return array_keys($this->payload) === range(0, count($this->payload) - 1);
+        return ! empty($this->payload) && array_is_list($this->payload);
     }
 }

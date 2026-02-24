@@ -50,6 +50,6 @@ class BatchRequestParser extends RequestParser
      */
     public static function isBatchRequest(array $payload)
     {
-        return array_keys($payload) === range(0, count($payload) - 1);
+        return ! empty($payload) && array_is_list($payload);
     }
 }

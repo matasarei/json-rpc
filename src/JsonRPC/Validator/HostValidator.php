@@ -42,10 +42,10 @@ class HostValidator
      */
     public static function ipMatch($remoteAddress, $host)
     {
-        $host = trim($host);
+        $host = trim((string)$host);
         if (strpos($host, '/') !== false) {
             list($network, $mask) = explode('/', $host);
-            if (self::netMatch($remoteAddress, $network, $mask)) {
+            if (self::netMatch((string)$remoteAddress, (string)$network, (string)$mask)) {
                 return true;
             }
         }
@@ -68,7 +68,7 @@ class HostValidator
      */
     public static function netMatch($clientIp, $networkIp, $mask)
     {
-        $mask1 = 32 - $mask;
-        return ((ip2long($clientIp) >> $mask1) == (ip2long($networkIp) >> $mask1));
+        $mask1 = 32 - (int)$mask;
+        return ((ip2long((string)$clientIp) >> $mask1) == (ip2long((string)$networkIp) >> $mask1));
     }
 }

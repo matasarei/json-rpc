@@ -278,7 +278,7 @@ class HttpClient
             $ch = curl_init();
             $headers = [];
             $options = [
-                CURLOPT_URL => trim($this->url),
+                CURLOPT_URL => trim((string)$this->url),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => $this->timeout,
                 CURLOPT_MAXREDIRS => 2,
@@ -317,7 +317,7 @@ class HttpClient
 
             $response = json_decode($response, true);
         } else {
-            $stream = fopen(trim($this->url), 'r', false, $this->buildContext($payload, $requestHeaders));
+            $stream = fopen(trim((string)$this->url), 'r', false, $this->buildContext($payload, $requestHeaders));
 
             if (!is_resource($stream)) {
                 throw new ConnectionFailureException('Unable to establish a connection');

@@ -272,7 +272,7 @@ class ProcedureHandler
      */
     public function isPositionalArguments(array $request_params)
     {
-        return array_keys($request_params) === range(0, count($request_params) - 1);
+        return ! empty($request_params) && array_is_list($request_params);
     }
 
     /**

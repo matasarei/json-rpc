@@ -110,7 +110,7 @@ class RequestBuilder
         $payload = array_merge_recursive($this->reqattrs, [
             'jsonrpc' => '2.0',
             'method' => $this->procedure,
-            'id' => $this->id ?: mt_rand(),
+            'id' => $this->id ?: (new \Random\Randomizer())->getInt(1, 1000000),
         ]);
 
         if (! empty($this->params)) {
