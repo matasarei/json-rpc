@@ -8,7 +8,9 @@
   `Proxy-Authorization` header values are redacted before logging.
 - `Server::withInternalErrorMasking()` (opt-in, default off): returns a generic
   `-32603 Internal error` for unrecognized exceptions instead of relaying their
-  message/code to the client. Recommended for production to avoid information disclosure.
+  message/code to the client, and suppresses the `data` member of `-32602 Invalid params`
+  errors (an application-thrown `InvalidArgumentException` carries its message there).
+  Recommended for production to avoid information disclosure.
 - `Server::withBatchLimit(int $max)` (opt-in, default unlimited): rejects batches larger
   than the limit with `-32600 Invalid Request`, mitigating denial-of-service from very
   large batches.

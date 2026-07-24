@@ -131,6 +131,22 @@ class ServerTest extends HeaderMockTest
         $this->assertStringNotContainsString('secret', json_encode($response));
     }
 
+    public function testInternalErrorMaskingHidesInvalidArgumentExceptionMessage()
+    {
+        $server = new Server($this->payload);
+        $server->withInternalErrorMasking();
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
+            throw new InvalidArgumentException('secret: /var/db/creds.ini');
+        });
+
+        $response = json_decode($server->execute(), true);
+
+        $this->assertSame(-32602, $response['error']['code']);
+        $this->assertSame('Invalid params', $response['error']['message']);
+        $this->assertArrayNotHasKey('data', $response['error']);
+        $this->assertStringNotContainsString('secret', json_encode($response));
+    }
+
     public function testWithoutInternalErrorMaskingLeaksExceptionMessage()
     {
         $server = new Server($this->payload);

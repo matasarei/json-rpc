@@ -36,6 +36,9 @@ is recommended for production. They are candidates for secure-by-default in a fu
    $server->withInternalErrorMasking(); // unknown exceptions become -32603 "Internal error"
    ```
 
+   Masking also suppresses the `data` member of `-32602 Invalid params` errors, because any
+   `InvalidArgumentException` thrown by a procedure carries its message there.
+
    You can still expose *intended* client-facing errors by throwing
    `JsonRPC\Exception\ResponseException` (which carries its own message/code/data), or keep
    an exception server-side with `$server->withLocalException(MyException::class)`.

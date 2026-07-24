@@ -315,7 +315,10 @@ class ResponseBuilder
         } catch (InvalidArgumentException $e) {
             $this->errorCode = -32602;
             $this->errorMessage = 'Invalid params';
-            $this->errorData = $this->exception->getMessage();
+            // Any InvalidArgumentException thrown by a procedure lands here,
+            // so the message may originate from application code and must be
+            // suppressed when internal-error masking is enabled.
+            $this->errorData = $this->maskInternalErrors ? '' : $this->exception->getMessage();
         } catch (ResponseEncodingFailureException $e) {
             $this->errorCode = -32603;
             $this->errorMessage = 'Internal error';

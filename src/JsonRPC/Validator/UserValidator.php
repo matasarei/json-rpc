@@ -18,8 +18,11 @@ class UserValidator
             return;
         }
 
-        $isKnownUser = isset($users[$username]);
-        $expected = $isKnownUser ? (string) $users[$username] : '';
+        // Only a string stored password can ever match: a non-string entry
+        // (false, null, int from a config file) must not become comparable
+        // through casting.
+        $hasValidEntry = isset($users[$username]) && is_string($users[$username]);
+        $expected = $hasValidEntry ? $users[$username] : '';
 
         // Compare fixed-length digests so the comparison takes the same time
         // for unknown usernames and passwords of any length, to avoid leaking
@@ -30,7 +33,7 @@ class UserValidator
             hash('sha256', $password)
         );
 
-        if (! $match || ! $isKnownUser) {
+        if (! $match || ! $hasValidEntry) {
             throw new AuthenticationFailureException('Access not allowed');
         }
     }

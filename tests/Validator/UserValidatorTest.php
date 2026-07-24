@@ -39,4 +39,10 @@ class UserValidatorTest extends TestCase
         $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
         UserValidator::validate(['user' => 'pass'], 'nobody', 'pass');
     }
+
+    public function testNonStringStoredPasswordIsRejected()
+    {
+        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
+        UserValidator::validate(['user' => false], 'user', '');
+    }
 }
