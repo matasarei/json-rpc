@@ -14,38 +14,48 @@ jobs:
     name: Composer config validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Validate composer.json
         run: composer validate --strict
-  # PHP syntax validation
-  php:
-    name: PHP syntax validation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Check PHP syntax
-        run: php -l src/ tests/
   # PHP coding standard validation
   phpcs:
     name: PHP coding standard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: php-actions/composer@v6
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
-          php_version: 8.2
+          php-version: '8.2'
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
       - name: Check PHP coding standard
         run: vendor/bin/phpcs
+  # PHPStan static analysis
+  phpstan:
+    name: PHPStan static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Run static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
   # run PHP unit tests
   phpunit:
     name: PHPUnit tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        php_version: [8.0, 8.1, 8.2, 8.3, 8.4]
+        php_version: ['8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
     steps:
-      - uses: actions/checkout@v3
-      - uses: php-actions/composer@v6
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
         with:
-          php_version: ${{ matrix.php_version }}
-      - run: vendor/bin/phpunit
+          php-version: ${{ matrix.php_version }}
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Run tests
+        run: vendor/bin/phpunit

@@ -149,7 +149,11 @@ class Server
             $value = $this->getServerVariable($header);
 
             if (! empty($value)) {
-                [$this->username, $this->password] = explode(':', base64_decode($value));
+                $credentials = base64_decode($value, true);
+
+                if ($credentials !== false && strpos($credentials, ':') !== false) {
+                    [$this->username, $this->password] = explode(':', $credentials, 2);
+                }
             }
         }
 

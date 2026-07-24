@@ -39,6 +39,13 @@ class RequestBuilder
     private $reqattrs = [];
 
     /**
+     * Build the request as a notification (no id member)
+     *
+     * @var bool
+     */
+    private $isNotification = false;
+
+    /**
      * Get new object instance
      *
      * @return RequestBuilder
@@ -101,6 +108,18 @@ class RequestBuilder
     }
 
     /**
+     * Build the request as a notification: the id member is omitted
+     * and the server will not send a response
+     *
+     * @return RequestBuilder
+     */
+    public function asNotification()
+    {
+        $this->isNotification = true;
+        return $this;
+    }
+
+    /**
      * Build the payload
      *
      * @return string
@@ -110,8 +129,11 @@ class RequestBuilder
         $payload = array_merge_recursive($this->reqattrs, [
             'jsonrpc' => '2.0',
             'method' => $this->procedure,
-            'id' => $this->id ?: mt_rand(),
         ]);
+
+        if (! $this->isNotification) {
+            $payload['id'] = $this->id ?? mt_rand();
+        }
 
         if (! empty($this->params)) {
             $payload['params'] = $this->params;

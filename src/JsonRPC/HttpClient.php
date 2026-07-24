@@ -7,6 +7,8 @@ use JsonRPC\Exception\AccessDeniedException;
 use JsonRPC\Exception\ConnectionFailureException;
 use JsonRPC\Exception\ResponseException;
 use JsonRPC\Exception\ServerErrorException;
+use JsonRPC\Logger\ErrorLogLogger;
+use Psr\Log\LoggerInterface;
 
 /**
  * Class HttpClient
@@ -57,11 +59,11 @@ class HttpClient
     protected $password;
 
     /**
-     * Enable debug output to the php error log
+     * PSR-3 logger for debug output
      *
-     * @var boolean
+     * @var LoggerInterface|null
      */
-    protected $debug = false;
+    protected $logger;
 
     /**
      * Cookies
@@ -194,13 +196,29 @@ class HttpClient
     }
 
     /**
-     * Enable debug mode
+     * Set a PSR-3 logger to receive request/response debug messages
+     *
+     * @param LoggerInterface $logger
+     *
+     * @return $this
+     */
+    public function withLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
+
+        return $this;
+    }
+
+    /**
+     * Enable debug mode (logs to the PHP error log)
+     *
+     * @deprecated Use withLogger() with any PSR-3 logger instead
      *
      * @return $this
      */
     public function withDebug()
     {
-        $this->debug = true;
+        $this->logger = new ErrorLogLogger();
 
         return $this;
     }
@@ -281,6 +299,8 @@ class HttpClient
                 CURLOPT_URL => trim($this->url),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => $this->timeout,
+                CURLOPT_TIMEOUT => $this->timeout,
+                CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS => 2,
                 CURLOPT_SSL_VERIFYPEER => $this->verifySslCertificate,
                 CURLOPT_POST => true,
@@ -295,12 +315,10 @@ class HttpClient
 
             $options = array_replace_recursive($options, $this->options);
 
-            if ($this->debug) {
-                error_log(sprintf(
-                    '==> CURL options: %s%s',
-                    PHP_EOL,
-                    json_encode($options, JSON_PRETTY_PRINT)
-                ));
+            if ($this->logger !== null) {
+                $loggedOptions = $options;
+                $loggedOptions[CURLOPT_HTTPHEADER] = $this->redactHeaders($requestHeaders);
+                $this->logger->debug('CURL options', ['options' => $loggedOptions]);
             }
 
             curl_setopt_array($ch, $options);
@@ -330,27 +348,15 @@ class HttpClient
             fclose($stream);
         }
 
-        if ($this->debug) {
-            error_log(sprintf(
-                '==> Request: %s%s',
-                PHP_EOL,
-                (is_string($payload) ? $payload : json_encode($payload, JSON_PRETTY_PRINT))
-            ));
-            error_log(sprintf(
-                '==> Request Headers: %s%s',
-                PHP_EOL,
-                var_export($requestHeaders, true)
-            ));
-            error_log(sprintf(
-                '==> Response Headers: %s%s',
-                PHP_EOL,
-                var_export($headers, true)
-            ));
-            error_log(sprintf(
-                '==> Response: %s%s',
-                PHP_EOL,
-                json_encode($response, JSON_PRETTY_PRINT)
-            ));
+        if ($this->logger !== null) {
+            $this->logger->debug('Request', [
+                'payload' => is_string($payload) ? $payload : json_encode($payload),
+                'headers' => $this->redactHeaders($requestHeaders),
+            ]);
+            $this->logger->debug('Response', [
+                'payload' => json_encode($response),
+                'headers' => $headers,
+            ]);
         }
 
         $this->handleExceptions($headers, is_array($response));
@@ -405,16 +411,15 @@ class HttpClient
             $pos = stripos($header, 'Set-Cookie:');
 
             if ($pos !== false) {
-                $cookies = explode(';', substr($header, $pos + 11));
+                // Only the first name=value pair is the cookie itself,
+                // the rest are attributes (Path, Expires, Secure, ...)
+                $cookie = explode(';', substr($header, $pos + 11))[0];
+                $item = explode('=', $cookie, 2);
 
-                foreach ($cookies as $cookie) {
-                    $item = explode('=', $cookie);
-
-                    if (count($item) === 2) {
-                        $name = trim($item[0]);
-                        $value = $item[1];
-                        $this->cookies[$name] = $value;
-                    }
+                if (count($item) === 2) {
+                    $name = trim($item[0]);
+                    $value = trim($item[1], " \t\r\n");
+                    $this->cookies[$name] = $value;
                 }
             }
         }
@@ -434,16 +439,25 @@ class HttpClient
     public function handleExceptions(array $headers, $isJsonResponse = false)
     {
         $exceptions = [
-            '401' => '\JsonRPC\Exception\AccessDeniedException',
-            '403' => '\JsonRPC\Exception\AccessDeniedException',
-            '404' => '\JsonRPC\Exception\ConnectionFailureException',
-            '500' => '\JsonRPC\Exception\ServerErrorException'
+            401 => '\JsonRPC\Exception\AccessDeniedException',
+            403 => '\JsonRPC\Exception\AccessDeniedException',
+            404 => '\JsonRPC\Exception\ConnectionFailureException',
+            500 => '\JsonRPC\Exception\ServerErrorException'
         ];
 
+        $errors = [];
+
         foreach ($headers as $header) {
-            foreach ($exceptions as $code => $exception) {
-                if (strpos($header, 'HTTP/1.0 ' . $code) !== false || strpos($header, 'HTTP/1.1 ' . $code) !== false) {
-                    throw new $exception('Response: ' . $header);
+            // Matches HTTP/1.0, HTTP/1.1 and HTTP/2 status lines, with or without a reason phrase
+            if (preg_match('~^HTTP/\d+(?:\.\d+)?\s+(\d{3})~', $header, $matches)) {
+                $statusCode = (int) $matches[1];
+
+                if (isset($exceptions[$statusCode])) {
+                    throw new $exceptions[$statusCode]('Response: ' . $header);
+                }
+
+                if ($statusCode >= 400 && $statusCode < 600) {
+                    $errors[] = $header;
                 }
             }
         }
@@ -451,10 +465,6 @@ class HttpClient
         if ($isJsonResponse) {
             return;
         }
-
-        $errors = array_filter($headers, function ($value) {
-            return preg_match('/HTTP.*[4-5]\d{2}\s\w/', $value);
-        });
 
         if (!empty($errors)) {
             throw new ResponseException(sprintf('Unexpected response: %s', current($errors)));
@@ -492,6 +502,24 @@ class HttpClient
     protected function isCurlLoaded()
     {
         return extension_loaded('curl');
+    }
+
+    /**
+     * Replace values of sensitive headers before logging
+     *
+     * @param string[] $headers
+     *
+     * @return string[]
+     */
+    protected function redactHeaders(array $headers)
+    {
+        return array_map(function ($header) {
+            if (preg_match('/^(Authorization|Cookie|Proxy-Authorization)\s*:/i', $header, $matches)) {
+                return $matches[1] . ': [redacted]';
+            }
+
+            return $header;
+        }, $headers);
     }
 
     /**

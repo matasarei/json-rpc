@@ -5,6 +5,16 @@ JSON-RPC PHP Client and Server
 
 A simple JSON-RPC client/server that just works.
 
+Project status
+--------------
+
+This repository is the maintained continuation of the original
+[fguillot/JsonRPC](https://packagist.org/packages/fguillot/json-rpc) library, which was
+abandoned and removed from GitHub by its original author. The package keeps its original
+name `fguillot/json-rpc` on Packagist so existing installations keep working; this
+repository (`matasarei/json-rpc`) is the canonical source. The library is in maintenance
+mode: it receives bug fixes, security fixes and compatibility updates for new PHP versions.
+
 Features
 --------
 
@@ -254,6 +264,30 @@ print_r($results);
 
 All results are stored at the same position of the call.
 
+### Client notifications
+
+A notification is a request without an `id` member: the server executes the
+procedure but does not send any response back.
+
+```php
+<?php
+
+use JsonRPC\Client;
+
+$client = new Client('http://localhost/server.php');
+$client->notify('logEvent', ['event' => 'user_login']);
+```
+
+Notifications can also be mixed into a batch request; only the regular calls
+produce results:
+
+```php
+$results = $client->batch()
+                  ->execute('add', [2, 5])
+                  ->notify('logEvent', ['event' => 'addition'])
+                  ->send();
+```
+
 ### Client exceptions
 
 Client exceptions are normally thrown when an error is returned by the server. You can change this behaviour by
@@ -266,9 +300,10 @@ executing the batch request.
 - `JsonRPC\Exception\ConnectionFailureException`: Connection failure
 - `JsonRPC\Exception\ServerErrorException`: Internal server error
 
-### Enable client debugging
+### Client logging and debugging
 
-You can enable the debug mode to see the JSON request and response:
+The HTTP client accepts any [PSR-3](https://www.php-fig.org/psr/psr-3/) logger and
+logs the JSON request and response (with `debug` level) through it:
 
 ```php
 <?php
@@ -276,30 +311,17 @@ You can enable the debug mode to see the JSON request and response:
 use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
-$client->getHttpClient()->withDebug();
+$client->getHttpClient()->withLogger($myPsr3Logger); // e.g. a Monolog instance
 ```
 
-The debug output is sent to the PHP system logger.
-You can configure the log destination in your `php.ini`.
+Sensitive headers (`Authorization`, `Cookie`, `Proxy-Authorization`) are redacted
+before logging.
 
-Output example:
+If you do not use a logging framework, the legacy debug mode writes the same
+messages to the PHP system logger (configurable via `error_log` in `php.ini`):
 
-```
-==> Request:
-{
-    "jsonrpc": "2.0",
-    "method": "removeCategory",
-    "id": 486782327,
-    "params": [
-        1
-    ]
-}
-==> Response:
-{
-    "jsonrpc": "2.0",
-    "id": 486782327,
-    "result": true
-}
+```php
+$client->getHttpClient()->withDebug(); // deprecated, prefer withLogger()
 ```
 
 ### IP based client restrictions
@@ -413,4 +435,16 @@ $client->getHttpClient()->withBeforeRequestCallback(function(HttpClient $client,
 });
 
 $client->myProcedure(123);
+```
+
+Development
+-----------
+
+Install the dependencies and run the checks:
+
+```bash
+composer install
+vendor/bin/phpunit                            # unit tests
+vendor/bin/phpcs                              # coding standard (PSR-12)
+vendor/bin/phpstan analyse --memory-limit=512M # static analysis
 ```

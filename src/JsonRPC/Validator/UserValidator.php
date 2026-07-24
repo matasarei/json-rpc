@@ -14,7 +14,10 @@ class UserValidator
 {
     public static function validate(array $users, $username, $password)
     {
-        if (! empty($users) && (! isset($users[$username]) || $users[$username] !== $password)) {
+        if (
+            ! empty($users)
+            && (! isset($users[$username]) || ! hash_equals((string) $users[$username], (string) $password))
+        ) {
             throw new AuthenticationFailureException('Access not allowed');
         }
     }

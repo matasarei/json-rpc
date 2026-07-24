@@ -48,6 +48,62 @@ class ClientTest extends TestCase
         $this->assertEquals(['c', 'd'], $result);
     }
 
+    public function testSendNotification()
+    {
+        $client = new Client('', false, $this->httpClient);
+
+        $this->httpClient
+            ->expects($this->once())
+            ->method('execute')
+            ->with('{"jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}')
+            ->will($this->returnValue(null));
+
+        $this->assertNull($client->notify('methodA', ['a' => 'b']));
+    }
+
+    public function testSendBatchOfNotificationsOnly()
+    {
+        $client = new Client('', false, $this->httpClient);
+
+        $this->httpClient
+            ->expects($this->once())
+            ->method('execute')
+            ->with('[{"jsonrpc":"2.0","method":"methodA"}, {"jsonrpc":"2.0","method":"methodB"}]')
+            ->will($this->returnValue(null));
+
+        $result = $client->batch()
+            ->notify('methodA')
+            ->notify('methodB')
+            ->send();
+
+        $this->assertNull($result);
+    }
+
+    public function testSendBatchWithMixedCallsAndNotifications()
+    {
+        $client = new Client('', false, $this->httpClient);
+        $response = [
+            [
+                'jsonrpc' => '2.0',
+                'result' => 'c',
+                'id' => 1,
+            ],
+        ];
+
+        $this->httpClient
+            ->expects($this->once())
+            ->method('execute')
+            ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodB"}]'))
+            ->will($this->returnValue($response));
+
+        $result = $client->batch()
+            ->execute('methodA', ['a' => 'b'])
+            ->notify('methodB')
+            ->send();
+
+        $this->assertEquals(['c'], $result);
+    }
+
     public function testSendRequest()
     {
         $client = new Client('', false, $this->httpClient);

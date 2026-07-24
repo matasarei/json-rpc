@@ -39,6 +39,30 @@ class ServerTest extends HeaderMockTest
         $this->assertEquals('mypassword', $server->getPassword());
     }
 
+    public function testCustomAuthenticationHeaderWithColonInPassword()
+    {
+        $env = [
+            'HTTP_X_AUTH' => base64_encode('myuser:my:pass:word'),
+        ];
+
+        $server = new Server($this->payload, $env);
+        $server->setAuthenticationHeader('X-Auth');
+        $this->assertEquals('myuser', $server->getUsername());
+        $this->assertEquals('my:pass:word', $server->getPassword());
+    }
+
+    public function testCustomAuthenticationHeaderWithMalformedValue()
+    {
+        $env = [
+            'HTTP_X_AUTH' => base64_encode('no-separator'),
+        ];
+
+        $server = new Server($this->payload, $env);
+        $server->setAuthenticationHeader('X-Auth');
+        $this->assertNull($server->getUsername());
+        $this->assertNull($server->getPassword());
+    }
+
     public function testCustomAuthenticationHeaderWithEmptyValue()
     {
         $server = new Server($this->payload);

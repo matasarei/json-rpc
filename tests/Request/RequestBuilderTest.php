@@ -39,6 +39,27 @@ class RequestBuilderTest extends TestCase
         $this->assertNotNull($result['id']);
     }
 
+    public function testBuilderAsNotification()
+    {
+        $payload = RequestBuilder::create()
+            ->withProcedure('foobar')
+            ->withParams([1, 2, 3])
+            ->asNotification()
+            ->build();
+
+        $this->assertEquals('{"jsonrpc":"2.0","method":"foobar","params":[1,2,3]}', $payload);
+    }
+
+    public function testBuilderKeepsFalsyId()
+    {
+        $payload = RequestBuilder::create()
+            ->withId(0)
+            ->withProcedure('foobar')
+            ->build();
+
+        $this->assertEquals('{"jsonrpc":"2.0","method":"foobar","id":0}', $payload);
+    }
+
     public function testBuilderWithAdditionalRequestAttributes()
     {
         $payload = RequestBuilder::create()

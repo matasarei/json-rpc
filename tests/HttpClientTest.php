@@ -9,6 +9,8 @@ require_once __DIR__ . '/../vendor/autoload.php';
 defined('CURLOPT_URL') || define('CURLOPT_URL', 10002);
 defined('CURLOPT_RETURNTRANSFER') || define('CURLOPT_RETURNTRANSFER', 19913);
 defined('CURLOPT_CONNECTTIMEOUT') || define('CURLOPT_CONNECTTIMEOUT', 78);
+defined('CURLOPT_TIMEOUT') || define('CURLOPT_TIMEOUT', 13);
+defined('CURLOPT_FOLLOWLOCATION') || define('CURLOPT_FOLLOWLOCATION', 52);
 defined('CURLOPT_MAXREDIRS') || define('CURLOPT_MAXREDIRS', 68);
 defined('CURLOPT_SSL_VERIFYPEER') || define('CURLOPT_SSL_VERIFYPEER', 64);
 defined('CURLOPT_POST') || define('CURLOPT_POST', 47);
@@ -55,6 +57,14 @@ function curl_exec($ch)
 function curl_getinfo($ch, $option)
 {
     HttpClientTest::$functions->curl_getinfo($ch, $option);
+}
+
+class TestableHttpClient extends HttpClient
+{
+    public function parseCookiesFromHeaders(array $headers)
+    {
+        $this->parseCookies($headers);
+    }
 }
 
 class HttpClientTest extends TestCase
@@ -112,6 +122,56 @@ class HttpClientTest extends TestCase
         $httpClient->handleExceptions([
             'HTTP/1.0 401 Unauthorized',
                                       ]);
+    }
+
+    public function testWithHttp2ServerError()
+    {
+        $this->expectException('\JsonRPC\Exception\ServerErrorException');
+
+        $httpClient = new HttpClient();
+        $httpClient->handleExceptions([
+            'HTTP/2 500',
+        ]);
+    }
+
+    public function testWithHttp2AccessForbidden()
+    {
+        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
+
+        $httpClient = new HttpClient();
+        $httpClient->handleExceptions([
+            'HTTP/2 403',
+        ]);
+    }
+
+    public function testWithHttp2UnexpectedErrorWithoutReasonPhrase()
+    {
+        $this->expectException('\JsonRPC\Exception\ResponseException');
+
+        $httpClient = new HttpClient();
+        $httpClient->handleExceptions([
+            'HTTP/2 429',
+        ]);
+    }
+
+    public function testUnexpectedErrorIsIgnoredForJsonResponse()
+    {
+        $httpClient = new HttpClient();
+        $httpClient->handleExceptions(['HTTP/2 429'], true);
+        $httpClient->handleExceptions(['HTTP/1.1 429 Too Many Requests'], true);
+
+        $this->addToAssertionCount(1);
+    }
+
+    public function testParseCookiesIgnoresAttributesAndKeepsEqualSigns()
+    {
+        $httpClient = new TestableHttpClient();
+        $httpClient->parseCookiesFromHeaders([
+            'Set-Cookie: session=abc=def; Path=/; HttpOnly; Expires=Wed, 21 Oct 2026 07:28:00 GMT',
+            "Set-Cookie: token=xyz\r\n",
+        ]);
+
+        $this->assertSame(['session' => 'abc=def', 'token' => 'xyz'], $httpClient->getCookies());
     }
 
     public function testWithCallback()
@@ -183,6 +243,8 @@ class HttpClientTest extends TestCase
                 CURLOPT_URL => 'url',
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => 5,
+                CURLOPT_TIMEOUT => 5,
+                CURLOPT_FOLLOWLOCATION => true,
                 CURLOPT_MAXREDIRS => 2,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_POST => true,
