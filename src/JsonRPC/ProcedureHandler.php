@@ -160,9 +160,13 @@ class ProcedureHandler
             return $this->executeMethod($this->classes[$procedure][0], $this->classes[$procedure][1], $params);
         }
 
-        foreach ($this->instances as $instance) {
-            if (method_exists($instance, $procedure)) {
-                return $this->executeMethod($instance, $procedure, $params);
+        // Never let a client resolve magic methods (__construct, __call, ...)
+        // through a bound instance by using their name as a procedure name.
+        if (strncmp($procedure, '__', 2) !== 0) {
+            foreach ($this->instances as $instance) {
+                if (method_exists($instance, $procedure)) {
+                    return $this->executeMethod($instance, $procedure, $params);
+                }
             }
         }
 

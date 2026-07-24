@@ -1,7 +1,11 @@
 JSON-RPC PHP Client and Server
 =============================
 
-![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)
+[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml)
+[![Latest Stable Version](https://img.shields.io/packagist/v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![Total Downloads](https://img.shields.io/packagist/dt/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![PHP Version](https://img.shields.io/packagist/php-v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![License](https://img.shields.io/packagist/l/fguillot/json-rpc.svg)](LICENSE)
 
 A simple JSON-RPC client/server that just works.
 
@@ -19,10 +23,14 @@ Features
 --------
 
 - JSON-RPC 2.0 only
-- The server support batch requests and notifications
-- Authentication and IP based client restrictions
-- Custom Middleware
-- Fully unit tested
+- Client and server for batch requests and notifications
+- HTTP Basic authentication and IP-based client restrictions
+- Custom middleware
+- PSR-3 logging of requests and responses (with credential redaction)
+- No hard runtime dependency beyond `ext-json` and `psr/log`
+- Works with the `curl` extension or, as a fallback, plain PHP streams
+- Fully unit tested, statically analysed (PHPStan) and PSR-12 compliant
+- Requires PHP 8.0+
 - License: MIT
 
 Contributors
@@ -30,6 +38,13 @@ Contributors
 [Frédéric Guillot](https://github.com/fguillot) and many others:
 
 ![Contributors](https://contrib.rocks/image?repo=matasarei/json-rpc)
+
+Requirements
+------------
+
+- PHP 8.0 or later
+- `ext-json`
+- `ext-curl` is optional; when it is not available the client transparently falls back to PHP streams
 
 Installation with Composer
 --------------------------
@@ -39,6 +54,18 @@ composer require fguillot/json-rpc
 
 Examples
 --------
+
+- [Server](#server)
+- [Client](#client)
+- [Client batch requests](#client-batch-requests)
+- [Client notifications](#client-notifications)
+- [Client exceptions](#client-exceptions)
+- [Client logging and debugging](#client-logging-and-debugging)
+- [IP based client restrictions](#ip-based-client-restrictions)
+- [HTTP Basic Authentication](#http-basic-authentication)
+- [Local Exceptions](#local-exceptions)
+- [Callback before client request](#callback-before-client-request)
+
 ### Symfony
 * https://github.com/matasarei/json-rpc-demo
 

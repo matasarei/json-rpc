@@ -89,6 +89,18 @@ class ServerTest extends HeaderMockTest
         $this->assertEquals('password', $server->getPassword());
     }
 
+    public function testGetCredentialsKeepsZeroString()
+    {
+        $env = [
+            'HTTP_X_AUTH' => base64_encode('0:0'),
+        ];
+
+        $server = new Server($this->payload, $env);
+        $server->setAuthenticationHeader('X-Auth');
+        $this->assertSame('0', $server->getUsername());
+        $this->assertSame('0', $server->getPassword());
+    }
+
     public function testExecute()
     {
         $server = new Server($this->payload);

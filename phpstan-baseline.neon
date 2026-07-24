@@ -119,9 +119,3 @@ parameters:
 			identifier: assign.propertyType
 			count: 1
 			path: src/JsonRPC/Server.php
-
-		-
-			message: '#^Binary operation "\-" between 32 and string results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/Validator/HostValidator.php

@@ -187,7 +187,7 @@ class Server
      */
     public function getUsername()
     {
-        return $this->username ?: $this->getServerVariable('PHP_AUTH_USER');
+        return $this->username !== '' ? $this->username : $this->getServerVariable('PHP_AUTH_USER');
     }
 
     /**
@@ -197,7 +197,7 @@ class Server
      */
     public function getPassword()
     {
-        return $this->password ?: $this->getServerVariable('PHP_AUTH_PW');
+        return $this->password !== '' ? $this->password : $this->getServerVariable('PHP_AUTH_PW');
     }
 
     /**

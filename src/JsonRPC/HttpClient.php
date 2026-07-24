@@ -300,8 +300,10 @@ class HttpClient
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => $this->timeout,
                 CURLOPT_TIMEOUT => $this->timeout,
-                CURLOPT_FOLLOWLOCATION => true,
-                CURLOPT_MAXREDIRS => 2,
+                // Redirects are not followed: a JSON-RPC endpoint is a fixed POST
+                // URL, and following a redirect would resend the Authorization and
+                // Cookie headers to the (possibly attacker-controlled) new location.
+                CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_SSL_VERIFYPEER => $this->verifySslCertificate,
                 CURLOPT_POST => true,
                 CURLOPT_POSTFIELDS => $payload,
@@ -380,7 +382,11 @@ class HttpClient
                 'method' => 'POST',
                 'protocol_version' => 1.1,
                 'timeout' => $this->timeout,
-                'max_redirects' => 2,
+                // Do not follow redirects (see CURLOPT_FOLLOWLOCATION above):
+                // follow_location => 0 disables it, max_redirects => 1 means
+                // "only the initial request" as an additional safeguard.
+                'follow_location' => 0,
+                'max_redirects' => 1,
                 'header' => implode("\r\n", $headers),
                 'content' => $payload,
                 'ignore_errors' => true,

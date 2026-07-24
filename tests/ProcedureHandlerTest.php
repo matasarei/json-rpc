@@ -36,6 +36,21 @@ class ClassWithBeforeMethod
     }
 }
 
+class ClassWithMagicMethods
+{
+    public $constructed = false;
+
+    public function __construct()
+    {
+        $this->constructed = true;
+    }
+
+    public function legit()
+    {
+        return 'ok';
+    }
+}
+
 class ProcedureHandlerTest extends TestCase
 {
     public function testProcedureNotFound()
@@ -43,6 +58,21 @@ class ProcedureHandlerTest extends TestCase
         $this->expectException('BadFunctionCallException');
         $handler = new ProcedureHandler();
         $handler->executeProcedure('a');
+    }
+
+    public function testMagicMethodOnInstanceIsNotCallable()
+    {
+        $this->expectException('BadFunctionCallException');
+        $handler = new ProcedureHandler();
+        $handler->withObject(new ClassWithMagicMethods());
+        $handler->executeProcedure('__construct');
+    }
+
+    public function testRegularMethodOnInstanceStillCallable()
+    {
+        $handler = new ProcedureHandler();
+        $handler->withObject(new ClassWithMagicMethods());
+        $this->assertSame('ok', $handler->executeProcedure('legit'));
     }
 
     public function testCallbackNotFound()
