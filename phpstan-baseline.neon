@@ -1,0 +1,121 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Method JsonRPC\\Client\:\:send\(\) should return Exception\|JsonRPC\\Client but returns null\.$#'
+			identifier: return.type
+			count: 1
+			path: src/JsonRPC/Client.php
+
+		-
+			message: '#^Method JsonRPC\\Client\:\:sendPayload\(\) never returns JsonRPC\\Client so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: src/JsonRPC/Client.php
+
+		-
+			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/JsonRPC/HttpClient.php
+
+		-
+			message: '#^Call to function is_callable\(\) with Closure will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/JsonRPC/HttpClient.php
+
+		-
+			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: src/JsonRPC/HttpClient.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: src/JsonRPC/Request/RequestBuilder.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: src/JsonRPC/Request/RequestParser.php
+
+		-
+			message: '#^Dead catch \- BadFunctionCallException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- Exception is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- InvalidArgumentException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- JsonRPC\\Exception\\AccessDeniedException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- JsonRPC\\Exception\\AuthenticationFailureException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- JsonRPC\\Exception\\InvalidJsonFormatException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- JsonRPC\\Exception\\InvalidJsonRpcFormatException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Dead catch \- JsonRPC\\Exception\\ResponseEncodingFailureException is never thrown in the try block\.$#'
+			identifier: catch.neverThrown
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Instanceof between JsonRPC\\Exception\\ResponseException and Exception will always evaluate to true\.$#'
+			identifier: instanceof.alwaysTrue
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Property JsonRPC\\Response\\ResponseBuilder\:\:\$exception \(JsonRPC\\Exception\\ResponseException\) does not accept Exception\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: src/JsonRPC/Response/ResponseBuilder.php
+
+		-
+			message: '#^Unsafe usage of new static\(\)\.$#'
+			identifier: new.static
+			count: 1
+			path: src/JsonRPC/Response/ResponseParser.php
+
+		-
+			message: '#^Property JsonRPC\\Server\:\:\$batchRequestParser \(JsonRPC\\Request\\BatchRequestParser\) does not accept JsonRPC\\Request\\RequestParser\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/JsonRPC/Server.php

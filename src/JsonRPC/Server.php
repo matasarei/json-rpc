@@ -41,6 +41,20 @@ class Server
     protected $localExceptions = [];
 
     /**
+     * Maximum number of requests allowed in a batch (0 = unlimited)
+     *
+     * @var int
+     */
+    protected $batchLimit = 0;
+
+    /**
+     * Mask unrecognized exceptions as a generic internal error
+     *
+     * @var bool
+     */
+    protected $maskInternalErrors = false;
+
+    /**
      * Username
      *
      * @var string
@@ -149,7 +163,11 @@ class Server
             $value = $this->getServerVariable($header);
 
             if (! empty($value)) {
-                [$this->username, $this->password] = explode(':', base64_decode($value));
+                $credentials = base64_decode($value, true);
+
+                if ($credentials !== false && strpos($credentials, ':') !== false) {
+                    [$this->username, $this->password] = explode(':', $credentials, 2);
+                }
             }
         }
 
@@ -183,7 +201,7 @@ class Server
      */
     public function getUsername()
     {
-        return $this->username ?: $this->getServerVariable('PHP_AUTH_USER');
+        return $this->username !== '' ? $this->username : $this->getServerVariable('PHP_AUTH_USER');
     }
 
     /**
@@ -193,7 +211,7 @@ class Server
      */
     public function getPassword()
     {
-        return $this->password ?: $this->getServerVariable('PHP_AUTH_PW');
+        return $this->password !== '' ? $this->password : $this->getServerVariable('PHP_AUTH_PW');
     }
 
     /**
@@ -290,6 +308,44 @@ class Server
     }
 
     /**
+     * Limit the number of requests accepted in a single batch.
+     *
+     * Batches larger than the limit are rejected with an "Invalid Request"
+     * (-32600) error. Helps mitigate denial-of-service from very large batches.
+     *
+     * @param  int $limit 0 disables the limit (default)
+     *
+     * @return $this
+     */
+    public function withBatchLimit($limit)
+    {
+        $this->batchLimit = $limit;
+
+        return $this;
+    }
+
+    /**
+     * Hide the message and code of unrecognized exceptions from the client.
+     *
+     * When enabled, any exception thrown by a procedure that is not a JSON-RPC
+     * exception (and is not registered as a local exception) is returned as a
+     * generic "Internal error" (-32603) instead of leaking its message, which
+     * may contain internal details (SQL, file paths, stack context).
+     *
+     * Recommended for production. Disabled by default for backward compatibility.
+     *
+     * @param  bool $enabled
+     *
+     * @return $this
+     */
+    public function withInternalErrorMasking($enabled = true)
+    {
+        $this->maskInternalErrors = $enabled;
+
+        return $this;
+    }
+
+    /**
      * Parse incoming requests
      *
      * @return string
@@ -335,7 +391,10 @@ class Server
             }
         }
 
-        return $this->responseBuilder->withException($e)->build();
+        return $this->responseBuilder
+            ->withInternalErrorMasking($this->maskInternalErrors)
+            ->withException($e)
+            ->build();
     }
 
     /**
@@ -353,6 +412,8 @@ class Server
                 ->withProcedureHandler($this->procedureHandler)
                 ->withMiddlewareHandler($this->middlewareHandler)
                 ->withLocalException($this->localExceptions)
+                ->withBatchLimit($this->batchLimit)
+                ->withInternalErrorMasking($this->maskInternalErrors)
                 ->parse();
         }
 
@@ -361,6 +422,7 @@ class Server
             ->withProcedureHandler($this->procedureHandler)
             ->withMiddlewareHandler($this->middlewareHandler)
             ->withLocalException($this->localExceptions)
+            ->withInternalErrorMasking($this->maskInternalErrors)
             ->parse();
     }
 

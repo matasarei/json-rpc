@@ -1,18 +1,36 @@
 JSON-RPC PHP Client and Server
 =============================
 
-![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)
+[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml)
+[![Latest Stable Version](https://img.shields.io/packagist/v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![Total Downloads](https://img.shields.io/packagist/dt/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![PHP Version](https://img.shields.io/packagist/php-v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![License](https://img.shields.io/packagist/l/fguillot/json-rpc.svg)](LICENSE)
 
 A simple JSON-RPC client/server that just works.
+
+Project status
+--------------
+
+This repository is the maintained continuation of the original
+[fguillot/JsonRPC](https://packagist.org/packages/fguillot/json-rpc) library, which was
+abandoned and removed from GitHub by its original author. The package keeps its original
+name `fguillot/json-rpc` on Packagist so existing installations keep working; this
+repository (`matasarei/json-rpc`) is the canonical source. The library is in maintenance
+mode: it receives bug fixes, security fixes and compatibility updates for new PHP versions.
 
 Features
 --------
 
 - JSON-RPC 2.0 only
-- The server support batch requests and notifications
-- Authentication and IP based client restrictions
-- Custom Middleware
-- Fully unit tested
+- Client and server for batch requests and notifications
+- HTTP Basic authentication and IP-based client restrictions
+- Custom middleware
+- PSR-3 logging of requests and responses (with credential redaction)
+- No hard runtime dependency beyond `ext-json` and `psr/log`
+- Works with the `curl` extension or, as a fallback, plain PHP streams
+- Fully unit tested, statically analysed (PHPStan) and PSR-12 compliant
+- Requires PHP 8.0+
 - License: MIT
 
 Contributors
@@ -20,6 +38,13 @@ Contributors
 [Frédéric Guillot](https://github.com/fguillot) and many others:
 
 ![Contributors](https://contrib.rocks/image?repo=matasarei/json-rpc)
+
+Requirements
+------------
+
+- PHP 8.0 or later
+- `ext-json`
+- `ext-curl` is optional; when it is not available the client transparently falls back to PHP streams
 
 Installation with Composer
 --------------------------
@@ -29,6 +54,19 @@ composer require fguillot/json-rpc
 
 Examples
 --------
+
+- [Server](#server)
+- [Client](#client)
+- [Client batch requests](#client-batch-requests)
+- [Client notifications](#client-notifications)
+- [Client exceptions](#client-exceptions)
+- [Client logging and debugging](#client-logging-and-debugging)
+- [IP based client restrictions](#ip-based-client-restrictions)
+- [HTTP Basic Authentication](#http-basic-authentication)
+- [Local Exceptions](#local-exceptions)
+- [Production hardening](#production-hardening)
+- [Callback before client request](#callback-before-client-request)
+
 ### Symfony
 * https://github.com/matasarei/json-rpc-demo
 
@@ -254,6 +292,30 @@ print_r($results);
 
 All results are stored at the same position of the call.
 
+### Client notifications
+
+A notification is a request without an `id` member: the server executes the
+procedure but does not send any response back.
+
+```php
+<?php
+
+use JsonRPC\Client;
+
+$client = new Client('http://localhost/server.php');
+$client->notify('logEvent', ['event' => 'user_login']);
+```
+
+Notifications can also be mixed into a batch request; only the regular calls
+produce results:
+
+```php
+$results = $client->batch()
+                  ->execute('add', [2, 5])
+                  ->notify('logEvent', ['event' => 'addition'])
+                  ->send();
+```
+
 ### Client exceptions
 
 Client exceptions are normally thrown when an error is returned by the server. You can change this behaviour by
@@ -266,9 +328,10 @@ executing the batch request.
 - `JsonRPC\Exception\ConnectionFailureException`: Connection failure
 - `JsonRPC\Exception\ServerErrorException`: Internal server error
 
-### Enable client debugging
+### Client logging and debugging
 
-You can enable the debug mode to see the JSON request and response:
+The HTTP client accepts any [PSR-3](https://www.php-fig.org/psr/psr-3/) logger and
+logs the JSON request and response (with `debug` level) through it:
 
 ```php
 <?php
@@ -276,30 +339,17 @@ You can enable the debug mode to see the JSON request and response:
 use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
-$client->getHttpClient()->withDebug();
+$client->getHttpClient()->withLogger($myPsr3Logger); // e.g. a Monolog instance
 ```
 
-The debug output is sent to the PHP system logger.
-You can configure the log destination in your `php.ini`.
+Sensitive headers (`Authorization`, `Cookie`, `Proxy-Authorization`) are redacted
+before logging.
 
-Output example:
+If you do not use a logging framework, the legacy debug mode writes the same
+messages to the PHP system logger (configurable via `error_log` in `php.ini`):
 
-```
-==> Request:
-{
-    "jsonrpc": "2.0",
-    "method": "removeCategory",
-    "id": 486782327,
-    "params": [
-        1
-    ]
-}
-==> Response:
-{
-    "jsonrpc": "2.0",
-    "id": 486782327,
-    "result": true
-}
+```php
+$client->getHttpClient()->withDebug(); // deprecated, prefer withLogger()
 ```
 
 ### IP based client restrictions
@@ -398,6 +448,36 @@ $server
 echo $server->execute();
 ```
 
+### Production hardening
+
+Two opt-in server options are recommended when exposing the server publicly. Both default
+to the previous behaviour, so they never change existing deployments unless you enable them.
+
+Hide internal exception details from clients — any exception that is not a JSON-RPC exception
+(and not registered as a local exception) is returned as a generic `-32603 Internal error`
+instead of leaking its message (database errors, file paths, stack context):
+
+```php
+<?php
+
+use JsonRPC\Server;
+
+$server = new Server();
+$server->withInternalErrorMasking();
+```
+
+You can still return intentional, client-facing errors by throwing
+`JsonRPC\Exception\ResponseException`, which carries its own message, code and data.
+
+Limit the number of calls accepted in a single batch to mitigate denial-of-service; larger
+batches are rejected with `-32600 Invalid Request`:
+
+```php
+$server->withBatchLimit(50);
+```
+
+See [SECURITY.md](SECURITY.md) for the full security model and hardening guidance.
+
 ### Callback before client request
 
 You can use a callback to change the HTTP headers or the URL before to make the request to the server.
@@ -413,4 +493,16 @@ $client->getHttpClient()->withBeforeRequestCallback(function(HttpClient $client,
 });
 
 $client->myProcedure(123);
+```
+
+Development
+-----------
+
+Install the dependencies and run the checks:
+
+```bash
+composer install
+vendor/bin/phpunit                            # unit tests
+vendor/bin/phpcs                              # coding standard (PSR-12)
+vendor/bin/phpstan analyse --memory-limit=512M # static analysis
 ```

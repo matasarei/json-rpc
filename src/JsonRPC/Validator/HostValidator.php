@@ -44,7 +44,7 @@ class HostValidator
     {
         $host = trim($host);
         if (strpos($host, '/') !== false) {
-            list($network, $mask) = explode('/', $host);
+            list($network, $mask) = explode('/', $host, 2);
             if (self::netMatch($remoteAddress, $network, $mask)) {
                 return true;
             }
@@ -60,6 +60,9 @@ class HostValidator
     /**
      * validate the ipAddress in network
      *
+     * Only IPv4 CIDR ranges are supported. Any malformed input (non-IPv4
+     * address, out-of-range or non-numeric mask) fails closed (returns false).
+     *
      * @param string $clientIp
      * @param string $networkIp
      * @param string $mask
@@ -68,7 +71,25 @@ class HostValidator
      */
     public static function netMatch($clientIp, $networkIp, $mask)
     {
-        $mask1 = 32 - $mask;
-        return ((ip2long($clientIp) >> $mask1) == (ip2long($networkIp) >> $mask1));
+        $client = ip2long($clientIp);
+        $network = ip2long($networkIp);
+
+        if ($client === false || $network === false || ! is_numeric($mask)) {
+            return false;
+        }
+
+        $mask = (int) $mask;
+
+        if ($mask < 0 || $mask > 32) {
+            return false;
+        }
+
+        if ($mask === 0) {
+            return true;
+        }
+
+        $shift = 32 - $mask;
+
+        return ($client >> $shift) === ($network >> $shift);
     }
 }

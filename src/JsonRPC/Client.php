@@ -44,6 +44,13 @@ class Client
     private $batch = [];
 
     /**
+     * Number of batched requests expecting a response (non-notifications)
+     *
+     * @var integer
+     */
+    private $batchCallCount = 0;
+
+    /**
      * Http Client
      *
      * @var HttpClient
@@ -128,6 +135,7 @@ class Client
     {
         $this->isBatch = true;
         $this->batch = [];
+        $this->batchCallCount = 0;
 
         return $this;
     }
@@ -142,8 +150,16 @@ class Client
     public function send()
     {
         $this->isBatch = false;
+        $payload = '[' . implode(', ', $this->batch) . ']';
 
-        return $this->sendPayload('[' . implode(', ', $this->batch) . ']');
+        if ($this->batchCallCount === 0) {
+            // Batch of notifications only: the server does not reply
+            $this->httpClient->execute($payload);
+
+            return null;
+        }
+
+        return $this->sendPayload($payload);
     }
 
     /**
@@ -170,11 +186,45 @@ class Client
 
         if ($this->isBatch) {
             $this->batch[] = $payload;
+            $this->batchCallCount++;
 
             return $this;
         }
 
         return $this->sendPayload($payload, $headers);
+    }
+
+    /**
+     * Send a notification: a request without an id member,
+     * for which the server must not reply
+     *
+     * @param  string   $procedure Procedure name
+     * @param  array    $params    Procedure arguments
+     * @param  array    $reqattrs
+     * @param  string[] $headers   Headers for this request
+     *
+     * @return $this|null
+     *
+     * @throws Exception
+     */
+    public function notify($procedure, array $params = [], array $reqattrs = [], array $headers = [])
+    {
+        $payload = RequestBuilder::create()
+            ->withProcedure($procedure)
+            ->withParams($params)
+            ->withRequestAttributes($reqattrs)
+            ->asNotification()
+            ->build();
+
+        if ($this->isBatch) {
+            $this->batch[] = $payload;
+
+            return $this;
+        }
+
+        $this->httpClient->execute($payload, $headers);
+
+        return null;
     }
 
     /**

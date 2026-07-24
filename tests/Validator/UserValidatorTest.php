@@ -22,4 +22,27 @@ class UserValidatorTest extends TestCase
         $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
         UserValidator::validate(['user' => 'pass'], 'user', 'wrong password');
     }
+
+    public function testMissingPasswordIsRejectedEvenWithEmptyStoredPassword()
+    {
+        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
+        UserValidator::validate(['user' => ''], 'user', null);
+    }
+
+    public function testEmptyPasswordMatchesEmptyStoredPassword()
+    {
+        $this->assertNull(UserValidator::validate(['user' => ''], 'user', ''));
+    }
+
+    public function testUnknownUserIsRejected()
+    {
+        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
+        UserValidator::validate(['user' => 'pass'], 'nobody', 'pass');
+    }
+
+    public function testNonStringStoredPasswordIsRejected()
+    {
+        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
+        UserValidator::validate(['user' => false], 'user', '');
+    }
 }
