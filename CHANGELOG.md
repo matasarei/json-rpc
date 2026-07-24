@@ -6,6 +6,12 @@
 - PSR-3 logging support: `HttpClient::withLogger()` accepts any `Psr\Log\LoggerInterface`
   and receives request/response debug messages. `Authorization`, `Cookie` and
   `Proxy-Authorization` header values are redacted before logging.
+- `Server::withInternalErrorMasking()` (opt-in, default off): returns a generic
+  `-32603 Internal error` for unrecognized exceptions instead of relaying their
+  message/code to the client. Recommended for production to avoid information disclosure.
+- `Server::withBatchLimit(int $max)` (opt-in, default unlimited): rejects batches larger
+  than the limit with `-32600 Invalid Request`, mitigating denial-of-service from very
+  large batches.
 - Client-side notifications: `Client::notify()` sends a request without an `id` member
   (the server must not reply), also usable inside `batch()`. Batches consisting only of
   notifications no longer fail on the empty server response.

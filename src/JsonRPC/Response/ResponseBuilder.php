@@ -80,6 +80,13 @@ class ResponseBuilder
     protected $exception;
 
     /**
+     * Mask unrecognized exceptions as a generic internal error
+     *
+     * @var bool
+     */
+    protected $maskInternalErrors = false;
+
+    /**
      * Get new object instance
      *
      * @return ResponseBuilder
@@ -87,6 +94,20 @@ class ResponseBuilder
     public static function create()
     {
         return new static();
+    }
+
+    /**
+     * Hide the message and code of unrecognized (non JSON-RPC) exceptions,
+     * returning a generic "Internal error" (-32603) to the client instead.
+     *
+     * @param  bool $enabled
+     *
+     * @return $this
+     */
+    public function withInternalErrorMasking($enabled = true)
+    {
+        $this->maskInternalErrors = $enabled;
+        return $this;
     }
 
     /**
@@ -313,8 +334,14 @@ class ResponseBuilder
             $this->errorMessage = $this->exception->getMessage();
             $this->errorData = $this->exception->getData();
         } catch (Exception $e) {
-            $this->errorCode = $this->exception->getCode();
-            $this->errorMessage = $this->exception->getMessage();
+            if ($this->maskInternalErrors) {
+                $this->errorCode = -32603;
+                $this->errorMessage = 'Internal error';
+                $this->errorData = '';
+            } else {
+                $this->errorCode = $this->exception->getCode();
+                $this->errorMessage = $this->exception->getMessage();
+            }
         }
     }
 }

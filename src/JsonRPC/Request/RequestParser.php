@@ -50,6 +50,13 @@ class RequestParser
     protected $middlewareHandler;
 
     /**
+     * Mask unrecognized exceptions as a generic internal error
+     *
+     * @var bool
+     */
+    protected $maskInternalErrors = false;
+
+    /**
      * Get new object instance
      *
      * @return RequestParser
@@ -57,6 +64,19 @@ class RequestParser
     public static function create()
     {
         return new static();
+    }
+
+    /**
+     * Hide the message and code of unrecognized exceptions from the client
+     *
+     * @param  bool $enabled
+     *
+     * @return $this
+     */
+    public function withInternalErrorMasking($enabled = true)
+    {
+        $this->maskInternalErrors = $enabled;
+        return $this;
     }
 
     /**
@@ -170,6 +190,7 @@ class RequestParser
 
         if ($e instanceof InvalidJsonRpcFormatException || ! $this->isNotification()) {
             return ResponseBuilder::create()
+                ->withInternalErrorMasking($this->maskInternalErrors)
                 ->withId(isset($this->payload['id']) ? $this->payload['id'] : null)
                 ->withException($e)
                 ->build();

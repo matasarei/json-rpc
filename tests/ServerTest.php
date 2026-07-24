@@ -116,6 +116,65 @@ class ServerTest extends HeaderMockTest
         $this->assertEquals('{"jsonrpc":"2.0","result":7,"id":"1"}', $server->execute());
     }
 
+    public function testInternalErrorMaskingHidesExceptionMessage()
+    {
+        $server = new Server($this->payload);
+        $server->withInternalErrorMasking();
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
+            throw new RuntimeException('secret: SQLSTATE table users does not exist');
+        });
+
+        $response = json_decode($server->execute(), true);
+
+        $this->assertSame(-32603, $response['error']['code']);
+        $this->assertSame('Internal error', $response['error']['message']);
+        $this->assertStringNotContainsString('secret', json_encode($response));
+    }
+
+    public function testWithoutInternalErrorMaskingLeaksExceptionMessage()
+    {
+        $server = new Server($this->payload);
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
+            throw new RuntimeException('leaked details');
+        });
+
+        $response = json_decode($server->execute(), true);
+
+        $this->assertSame('leaked details', $response['error']['message']);
+    }
+
+    public function testBatchLimitRejectsOversizedBatch()
+    {
+        $batch = '[' . implode(',', array_fill(0, 3, '{"jsonrpc":"2.0","method":"sum","params":[1,2,3],"id":1}')) . ']';
+
+        $server = new Server($batch);
+        $server->withBatchLimit(2);
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
+            return $a + $b + $c;
+        });
+
+        $response = json_decode($server->execute(), true);
+
+        $this->assertSame(-32600, $response['error']['code']);
+        $this->assertSame('Invalid Request', $response['error']['message']);
+    }
+
+    public function testBatchWithinLimitIsProcessed()
+    {
+        $batch = '[' . implode(',', array_fill(0, 2, '{"jsonrpc":"2.0","method":"sum","params":[1,2,3],"id":1}')) . ']';
+
+        $server = new Server($batch);
+        $server->withBatchLimit(2);
+        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
+            return $a + $b + $c;
+        });
+
+        $response = json_decode($server->execute(), true);
+
+        $this->assertCount(2, $response);
+        $this->assertSame(6, $response[0]['result']);
+    }
+
     public function testExecuteRequestParserOverride()
     {
         $requestParser = $this->getMockBuilder('JsonRPC\Request\RequestParser')
@@ -125,6 +184,7 @@ class ServerTest extends HeaderMockTest
         $requestParser->method('withProcedureHandler')->willReturn($requestParser);
         $requestParser->method('withMiddlewareHandler')->willReturn($requestParser);
         $requestParser->method('withLocalException')->willReturn($requestParser);
+        $requestParser->method('withInternalErrorMasking')->willReturn($requestParser);
 
         $server = new Server($this->payload, [], null, $requestParser);
 
@@ -143,6 +203,8 @@ class ServerTest extends HeaderMockTest
         $batchRequestParser->method('withProcedureHandler')->willReturn($batchRequestParser);
         $batchRequestParser->method('withMiddlewareHandler')->willReturn($batchRequestParser);
         $batchRequestParser->method('withLocalException')->willReturn($batchRequestParser);
+        $batchRequestParser->method('withBatchLimit')->willReturn($batchRequestParser);
+        $batchRequestParser->method('withInternalErrorMasking')->willReturn($batchRequestParser);
 
         $server = new Server('["...", "..."]', [], null, null, $batchRequestParser);
 
@@ -176,6 +238,8 @@ class ServerTest extends HeaderMockTest
         $batchRequestParser->method('withProcedureHandler')->willReturn($batchRequestParser);
         $batchRequestParser->method('withMiddlewareHandler')->willReturn($batchRequestParser);
         $batchRequestParser->method('withLocalException')->willReturn($batchRequestParser);
+        $batchRequestParser->method('withBatchLimit')->willReturn($batchRequestParser);
+        $batchRequestParser->method('withInternalErrorMasking')->willReturn($batchRequestParser);
 
         $server = new Server('["...", "..."]', [], null, null, $batchRequestParser, $procedureHandler);
 

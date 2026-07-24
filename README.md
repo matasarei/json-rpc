@@ -64,6 +64,7 @@ Examples
 - [IP based client restrictions](#ip-based-client-restrictions)
 - [HTTP Basic Authentication](#http-basic-authentication)
 - [Local Exceptions](#local-exceptions)
+- [Production hardening](#production-hardening)
 - [Callback before client request](#callback-before-client-request)
 
 ### Symfony
@@ -446,6 +447,36 @@ $server
 
 echo $server->execute();
 ```
+
+### Production hardening
+
+Two opt-in server options are recommended when exposing the server publicly. Both default
+to the previous behaviour, so they never change existing deployments unless you enable them.
+
+Hide internal exception details from clients — any exception that is not a JSON-RPC exception
+(and not registered as a local exception) is returned as a generic `-32603 Internal error`
+instead of leaking its message (database errors, file paths, stack context):
+
+```php
+<?php
+
+use JsonRPC\Server;
+
+$server = new Server();
+$server->withInternalErrorMasking();
+```
+
+You can still return intentional, client-facing errors by throwing
+`JsonRPC\Exception\ResponseException`, which carries its own message, code and data.
+
+Limit the number of calls accepted in a single batch to mitigate denial-of-service; larger
+batches are rejected with `-32600 Invalid Request`:
+
+```php
+$server->withBatchLimit(50);
+```
+
+See [SECURITY.md](SECURITY.md) for the full security model and hardening guidance.
 
 ### Callback before client request
 
