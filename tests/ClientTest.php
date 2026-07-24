@@ -13,7 +13,7 @@ class ClientTest extends TestCase
     {
         $this->httpClient = $this
             ->getMockBuilder('\JsonRPC\HttpClient')
-            ->setMethods(['execute'])
+            ->onlyMethods(['execute'])
             ->getMock();
     }
 

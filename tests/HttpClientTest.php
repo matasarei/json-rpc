@@ -75,7 +75,7 @@ class HttpClientTest extends TestCase
     {
         self::$functions = $this
             ->getMockBuilder('stdClass')
-            ->setMethods([
+            ->addMethods([
                 'extension_loaded', 'fopen', 'stream_context_create', 'curl_getinfo',
                 'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec',
             ])
