@@ -389,7 +389,7 @@ class HttpClient
             ]);
             $this->logger->debug('Response', [
                 'payload' => json_encode($response),
-                'headers' => $headers,
+                'headers' => $this->redactHeaders($headers),
             ]);
         }
 
@@ -554,7 +554,7 @@ class HttpClient
     protected function redactHeaders(array $headers)
     {
         return array_map(function ($header) {
-            if (preg_match('/^(Authorization|Cookie|Proxy-Authorization)\s*:/i', $header, $matches)) {
+            if (preg_match('/^(Authorization|Cookie|Set-Cookie|Proxy-Authorization)\s*:/i', $header, $matches)) {
                 return $matches[1] . ': [redacted]';
             }
 

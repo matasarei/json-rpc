@@ -71,6 +71,11 @@ class TestableHttpClient extends HttpClient
     {
         $this->parseCookies($headers);
     }
+
+    public function redactHeadersPublic(array $headers)
+    {
+        return $this->redactHeaders($headers);
+    }
 }
 
 class HttpClientTest extends TestCase
@@ -167,6 +172,28 @@ class HttpClientTest extends TestCase
         $httpClient->handleExceptions(['HTTP/1.1 429 Too Many Requests'], true);
 
         $this->addToAssertionCount(1);
+    }
+
+    public function testRedactHeadersHidesCredentialValues()
+    {
+        $httpClient = new TestableHttpClient();
+
+        $this->assertSame(
+            [
+                'Authorization: [redacted]',
+                'Cookie: [redacted]',
+                'Set-Cookie: [redacted]',
+                'Proxy-Authorization: [redacted]',
+                'Content-Type: application/json',
+            ],
+            $httpClient->redactHeadersPublic([
+                'Authorization: Basic dXNlcjpwYXNz',
+                'Cookie: session=secret',
+                'Set-Cookie: session=secret; Path=/',
+                'Proxy-Authorization: Basic dXNlcjpwYXNz',
+                'Content-Type: application/json',
+            ])
+        );
     }
 
     public function testRedirectResponseIsReportedAsError()
