@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.5.0 (unreleased)
+## v1.5.0 (2026-07-24)
 
 ### Added
 - PSR-3 logging support: `HttpClient::withLogger()` accepts any `Psr\Log\LoggerInterface`
