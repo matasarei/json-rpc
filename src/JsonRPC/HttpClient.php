@@ -26,11 +26,18 @@ class HttpClient
     protected $url;
 
     /**
-     * HTTP client timeout
+     * HTTP client connection timeout
      *
      * @var integer
      */
     protected $timeout = 5;
+
+    /**
+     * Total transfer timeout, 0 means no limit
+     *
+     * @var integer
+     */
+    protected $executionTimeout = 0;
 
     /**
      * Default HTTP headers to send to the server
@@ -153,7 +160,7 @@ class HttpClient
     }
 
     /**
-     * Set timeout
+     * Set connection timeout
      *
      * @param integer $timeout
      *
@@ -162,6 +169,20 @@ class HttpClient
     public function withTimeout($timeout)
     {
         $this->timeout = $timeout;
+
+        return $this;
+    }
+
+    /**
+     * Set total transfer timeout (0 = no limit)
+     *
+     * @param integer $timeout
+     *
+     * @return $this
+     */
+    public function withExecutionTimeout($timeout)
+    {
+        $this->executionTimeout = $timeout;
 
         return $this;
     }
@@ -299,7 +320,7 @@ class HttpClient
                 CURLOPT_URL => trim($this->url),
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => $this->timeout,
-                CURLOPT_TIMEOUT => $this->timeout,
+                CURLOPT_TIMEOUT => $this->executionTimeout,
                 // Redirects are not followed: a JSON-RPC endpoint is a fixed POST
                 // URL, and following a redirect would resend the Authorization and
                 // Cookie headers to the (possibly attacker-controlled) new location.
@@ -319,7 +340,14 @@ class HttpClient
 
             if ($this->logger !== null) {
                 $loggedOptions = $options;
-                $loggedOptions[CURLOPT_HTTPHEADER] = $this->redactHeaders($requestHeaders);
+                $loggedOptions[CURLOPT_HTTPHEADER] = $this->redactHeaders($loggedOptions[CURLOPT_HTTPHEADER]);
+
+                foreach ([CURLOPT_USERPWD, CURLOPT_COOKIE, CURLOPT_XOAUTH2_BEARER] as $secretOption) {
+                    if (isset($loggedOptions[$secretOption])) {
+                        $loggedOptions[$secretOption] = '[redacted]';
+                    }
+                }
+
                 $this->logger->debug('CURL options', ['options' => $loggedOptions]);
             }
 
@@ -332,6 +360,10 @@ class HttpClient
             $response = curl_exec($ch);
 
             if (false === $response) {
+                if (curl_errno($ch) === CURLE_OPERATION_TIMEDOUT) {
+                    throw new ConnectionFailureException('Operation timed out');
+                }
+
                 throw new ConnectionFailureException('Unable to establish a connection');
             }
 
@@ -381,7 +413,7 @@ class HttpClient
             'http' => [
                 'method' => 'POST',
                 'protocol_version' => 1.1,
-                'timeout' => $this->timeout,
+                'timeout' => $this->executionTimeout > 0 ? $this->executionTimeout : $this->timeout,
                 // Do not follow redirects (see CURLOPT_FOLLOWLOCATION above):
                 // follow_location => 0 disables it, max_redirects => 1 means
                 // "only the initial request" as an additional safeguard.
@@ -462,7 +494,9 @@ class HttpClient
                     throw new $exceptions[$statusCode]('Response: ' . $header);
                 }
 
-                if ($statusCode >= 400 && $statusCode < 600) {
+                // Redirects are never followed (see execute()), so a 3xx
+                // response is terminal and must be reported, not ignored.
+                if ($statusCode >= 300 && $statusCode < 600) {
                     $errors[] = $header;
                 }
             }

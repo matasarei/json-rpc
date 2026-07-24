@@ -18,6 +18,7 @@ defined('CURLOPT_POSTFIELDS') || define('CURLOPT_POSTFIELDS', 10015);
 defined('CURLOPT_HTTPHEADER') || define('CURLOPT_HTTPHEADER', 10023);
 defined('CURLOPT_HEADERFUNCTION') || define('CURLOPT_HEADERFUNCTION', 20079);
 defined('CURLOPT_CAINFO') || define('CURLOPT_CAINFO', 10065);
+defined('CURLE_OPERATION_TIMEDOUT') || define('CURLE_OPERATION_TIMEDOUT', 28);
 
 function extension_loaded($extension)
 {
@@ -54,6 +55,11 @@ function curl_exec($ch)
     return HttpClientTest::$functions->curl_exec($ch);
 }
 
+function curl_errno($ch)
+{
+    return HttpClientTest::$functions->curl_errno($ch);
+}
+
 function curl_getinfo($ch, $option)
 {
     HttpClientTest::$functions->curl_getinfo($ch, $option);
@@ -77,7 +83,7 @@ class HttpClientTest extends TestCase
             ->getMockBuilder('stdClass')
             ->addMethods([
                 'extension_loaded', 'fopen', 'stream_context_create', 'curl_getinfo',
-                'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec',
+                'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec', 'curl_errno',
             ])
             ->getMock();
     }
@@ -163,6 +169,17 @@ class HttpClientTest extends TestCase
         $this->addToAssertionCount(1);
     }
 
+    public function testRedirectResponseIsReportedAsError()
+    {
+        $this->expectException('\JsonRPC\Exception\ResponseException');
+
+        $httpClient = new HttpClient();
+        $httpClient->handleExceptions([
+            'HTTP/1.1 301 Moved Permanently',
+            'Location: https://example.com/new',
+        ]);
+    }
+
     public function testParseCookiesIgnoresAttributesAndKeepsEqualSigns()
     {
         $httpClient = new TestableHttpClient();
@@ -244,7 +261,7 @@ class HttpClientTest extends TestCase
                 CURLOPT_URL => 'url',
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT => 5,
+                CURLOPT_TIMEOUT => 0,
                 CURLOPT_FOLLOWLOCATION => false,
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_POST => true,
@@ -282,6 +299,46 @@ class HttpClientTest extends TestCase
 
 
         $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
+        $httpClient->execute('test');
+    }
+
+    public function testWithCurlTimeout()
+    {
+        self::$functions
+            ->expects(static::exactly(1))
+            ->method('extension_loaded')
+            ->with('curl')
+            ->will($this->returnValue(true));
+
+        self::$functions
+            ->expects(static::exactly(1))
+            ->method('curl_init')
+            ->will($this->returnValue('curl'));
+
+        self::$functions
+            ->expects(static::exactly(1))
+            ->method('curl_setopt_array')
+            ->with('curl', static::callback(function (array $options) {
+                return $options[CURLOPT_CONNECTTIMEOUT] === 5 && $options[CURLOPT_TIMEOUT] === 10;
+            }));
+
+        self::$functions
+            ->expects(static::exactly(1))
+            ->method('curl_exec')
+            ->with('curl')
+            ->will($this->returnValue(false));
+
+        self::$functions
+            ->expects(static::exactly(1))
+            ->method('curl_errno')
+            ->with('curl')
+            ->will($this->returnValue(CURLE_OPERATION_TIMEDOUT));
+
+        $httpClient = new HttpClient('url');
+        $httpClient->withExecutionTimeout(10);
+
+        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
+        $this->expectExceptionMessage('Operation timed out');
         $httpClient->execute('test');
     }
 }

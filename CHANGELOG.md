@@ -16,6 +16,11 @@
   (the server must not reply), also usable inside `batch()`. Batches consisting only of
   notifications no longer fail on the empty server response.
 - `RequestBuilder::asNotification()` builds a payload without an `id` member.
+- `HttpClient::withExecutionTimeout(int $seconds)`: total transfer timeout (cURL
+  `CURLOPT_TIMEOUT`, stream `timeout`), separate from the connect timeout set by
+  `withTimeout()`. Default 0 (no limit), preserving the previous behavior for
+  long-running procedures. A cURL timeout now raises a `ConnectionFailureException`
+  with an accurate "Operation timed out" message.
 - PHPStan static analysis (level 4 with a baseline for pre-existing findings) in CI.
 
 ### Security
@@ -37,8 +42,9 @@
 ### Fixed
 - HTTP error responses from HTTP/2 servers (status lines like `HTTP/2 500` without a
   reason phrase) were silently ignored; status lines are now parsed for any HTTP version.
-- cURL transport had no total request timeout (only a connect timeout); `withTimeout()`
-  now also sets `CURLOPT_TIMEOUT`, matching the stream transport semantics.
+- Since redirects are no longer followed, a `3xx` response without a valid JSON body now
+  raises a `ResponseException` instead of being silently ignored (which dropped
+  notifications and produced a misleading "Malformed payload" error for regular calls).
 - Cookie values containing `=` were dropped, and cookie attributes (`Path`, `Expires`, ...)
   were stored as if they were cookies.
 - `Server::setAuthenticationHeader()` broke on passwords containing `:` and emitted an
