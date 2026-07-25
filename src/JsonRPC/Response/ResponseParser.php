@@ -18,9 +18,11 @@ use JsonRPC\Exception\ResponseException;
 final readonly class ResponseParser
 {
     /**
+     * @param int|string|null $expectedId Identifier of the call being answered
+     *
      * @throws JsonRpcException
      */
-    public function parse(mixed $payload): mixed
+    public function parse(mixed $payload, int|string|null $expectedId = null): mixed
     {
         if (!is_array($payload)) {
             throw new InvalidJsonFormatException('Malformed payload');
@@ -38,7 +40,36 @@ final readonly class ResponseParser
             throw $error;
         }
 
-        return $payload['result'] ?? null;
+        // Without a result and without an error this is not an answer at all,
+        // but something else that happens to be JSON: a maintenance page, or
+        // whatever sits in front of the endpoint.
+        if (!array_key_exists('result', $payload)) {
+            throw new InvalidJsonRpcFormatException('The response has neither a result nor an error member');
+        }
+
+        $this->checkAnswersTheCall($payload, $expectedId);
+
+        return $payload['result'];
+    }
+
+    /**
+     * @param array<array-key, mixed> $payload
+     *
+     * @throws ResponseException
+     */
+    private function checkAnswersTheCall(array $payload, int|string|null $expectedId): void
+    {
+        $id = $payload['id'] ?? null;
+
+        if ($expectedId === null || $id === null) {
+            return;
+        }
+
+        if (!is_scalar($id) || is_bool($id) || $this->idKey($id) !== $this->idKey($expectedId)) {
+            throw new ResponseException(
+                sprintf('The response does not answer the request with id %s', (string) $expectedId),
+            );
+        }
     }
 
     /**

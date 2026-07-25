@@ -54,7 +54,35 @@ final class StreamTransport implements TransportInterface
         /** @var list<string> $headerLines */
         $headerLines = $metadata['wrapper_data'] ?? [];
 
-        return TransportResponse::fromRawHeaders(is_string($body) ? $body : '', $headerLines);
+        $response = TransportResponse::fromRawHeaders(is_string($body) ? $body : '', $headerLines);
+
+        $this->rejectTruncatedBody($response);
+
+        return $response;
+    }
+
+    /**
+     * The stream wrapper hands over whatever arrived before the connection was
+     * closed, so a body shorter than its announced length has to be reported
+     * instead of being parsed as if it were complete.
+     *
+     * @throws ConnectionFailureException
+     */
+    private function rejectTruncatedBody(TransportResponse $response): void
+    {
+        $announced = $response->headerValues('Content-Length')[0] ?? null;
+
+        if ($announced === null || !ctype_digit($announced)) {
+            return;
+        }
+
+        $missing = (int) $announced - strlen($response->body);
+
+        if ($missing > 0) {
+            throw new ConnectionFailureException(
+                sprintf('The response ended with %d bytes missing', $missing),
+            );
+        }
     }
 
     /**

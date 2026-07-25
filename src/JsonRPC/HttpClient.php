@@ -245,6 +245,7 @@ final class HttpClient
         ]);
 
         $this->cookies->store($response->headerValues('Set-Cookie'));
+        $this->rejectEncodedBody($response);
 
         $decoded = $this->decode($response->body);
 
@@ -354,7 +355,10 @@ final class HttpClient
         $exception = match ($response->statusCode) {
             401, 403 => new AccessDeniedException($message),
             404 => new ConnectionFailureException($message),
-            500 => new ServerErrorException($message),
+            // A server answering an internal error with a JSON-RPC error object
+            // has said what went wrong; only a 500 that carries something else,
+            // an error page for instance, is reported as a server failure.
+            500 => $isJsonResponse ? null : new ServerErrorException($message),
             default => null,
         };
 
@@ -373,6 +377,26 @@ final class HttpClient
         }
 
         throw new ResponseException(sprintf('Unexpected response with status code %d', $response->statusCode));
+    }
+
+    /**
+     * No transport negotiates compression, so a body that arrives encoded
+     * anyway cannot be read and has to be reported as such rather than as a
+     * malformed payload.
+     *
+     * @throws ResponseException
+     */
+    private function rejectEncodedBody(TransportResponse $response): void
+    {
+        $encoding = $response->headerValues('Content-Encoding')[0] ?? null;
+
+        if ($encoding === null || $encoding === '' || strcasecmp($encoding, 'identity') === 0) {
+            return;
+        }
+
+        throw new ResponseException(
+            sprintf('The response is encoded with "%s", which this client does not decode', $encoding),
+        );
     }
 
     /**

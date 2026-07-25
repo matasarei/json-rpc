@@ -59,6 +59,15 @@ switch ($path) {
 
         return true;
 
+    case '/truncated':
+        // Announce more than what is sent, then close.
+        $payload = json_encode(['jsonrpc' => '2.0', 'result' => 'looks complete', 'id' => 1]);
+        header('Content-Type: application/json');
+        header('Content-Length: ' . (strlen((string) $payload) + 500));
+        echo $payload;
+
+        return true;
+
     case '/not-json':
         header('Content-Type: text/plain');
         echo 'not json at all';

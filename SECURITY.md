@@ -62,9 +62,14 @@ The hardening that was opt-in in 1.5 is the default behaviour in 2.0.
   value it received into `withHeaders()` or `withCookies()` cannot have extra headers
   smuggled into its request.
 
-- **Cookies a server deletes are forgotten.** A `Set-Cookie` with an empty value or
-  `Max-Age=0` removes the cookie from the jar, so a session is not sent again after a
-  logout.
+- **Cookies a server deletes are forgotten.** A `Set-Cookie` with an empty value, a
+  `Max-Age` of zero or less, or an `Expires` in the past removes the cookie from the jar,
+  so a session is not sent again after a logout. A value carrying a control character or
+  a separator is refused, whether it comes from the server or from the application.
+
+  The jar is not a browser cookie store: it belongs to one `HttpClient`, which talks to
+  one endpoint, so `Domain`, `Path` and `Secure` are not enforced. Point a client at a
+  different host and it sends what the previous one set.
 
 - **Credentials are redacted from logs.** `Authorization`, `Cookie`, `Set-Cookie` and
   `Proxy-Authorization` values are replaced by `[redacted]` before anything is handed to a

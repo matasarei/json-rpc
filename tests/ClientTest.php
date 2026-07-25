@@ -6,7 +6,9 @@ namespace JsonRPC\Tests;
 
 use JsonRPC\Client;
 use JsonRPC\Client\BatchBuilder;
+use JsonRPC\Exception\InvalidJsonRpcFormatException;
 use JsonRPC\Exception\MethodNotFoundException;
+use JsonRPC\Exception\ResponseException;
 use JsonRPC\HttpClient;
 use JsonRPC\Tests\Doubles\FakeTransport;
 use JsonRPC\Tests\Doubles\SequentialIdGenerator;
@@ -43,13 +45,43 @@ final class ClientTest extends TestCase
 
     public function testPassesRequestAttributesIdAndHeaders(): void
     {
-        $this->client->execute('methodA', [], ['auth' => 'token'], 'my-id', ['X-Request' => 'yes']);
+        $transport = FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 'my-id']);
+        $client = new Client('', new HttpClient('https://example.com/rpc', $transport));
+
+        $client->execute('methodA', [], ['auth' => 'token'], 'my-id', ['X-Request' => 'yes']);
 
         $this->assertSame(
             '{"auth":"token","jsonrpc":"2.0","method":"methodA","id":"my-id"}',
-            $this->transport->lastRequest()->body,
+            $transport->lastRequest()->body,
         );
-        $this->assertSame('yes', $this->transport->lastRequest()->headers['X-Request']);
+        $this->assertSame('yes', $transport->lastRequest()->headers['X-Request']);
+    }
+
+    public function testRefusesAnAnswerThatCarriesAnotherRequestId(): void
+    {
+        $client = new Client(
+            '',
+            new HttpClient('', FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'other', 'id' => 999])),
+            new SequentialIdGenerator(),
+        );
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('The response does not answer the request with id 1');
+
+        $client->execute('methodA');
+    }
+
+    public function testRefusesAnAnswerThatIsJustSomeOtherJson(): void
+    {
+        $client = new Client(
+            '',
+            new HttpClient('', FakeTransport::withJson(['status' => 'maintenance', 'retry_after' => 30])),
+        );
+
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('neither a result nor an error member');
+
+        $client->execute('methodA');
     }
 
     public function testThrowsTheErrorReturnedByTheServer(): void
