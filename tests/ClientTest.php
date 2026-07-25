@@ -37,7 +37,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('[{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue($response));
+            ->willReturn(($response));
 
 
         $result = $client->batch()
@@ -56,7 +56,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with('{"jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}')
-            ->will($this->returnValue(null));
+            ->willReturn((null));
 
         $this->assertNull($client->notify('methodA', ['a' => 'b']));
     }
@@ -69,7 +69,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with('[{"jsonrpc":"2.0","method":"methodA"}, {"jsonrpc":"2.0","method":"methodB"}]')
-            ->will($this->returnValue(null));
+            ->willReturn((null));
 
         $result = $client->batch()
             ->notify('methodA')
@@ -94,7 +94,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodB"}]'))
-            ->will($this->returnValue($response));
+            ->willReturn(($response));
 
         $result = $client->batch()
             ->execute('methodA', ['a' => 'b'])
@@ -112,7 +112,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
+            ->willReturn((['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
 
         $result = $client->execute('methodA', ['a' => 'b']);
         $this->assertEquals($result, 'foobar');
@@ -126,7 +126,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue([
+            ->willReturn(([
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => -32601,
@@ -146,7 +146,7 @@ class ClientTest extends TestCase
             ->expects($this->once())
             ->method('execute')
             ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue([
+            ->willReturn(([
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => -32601,

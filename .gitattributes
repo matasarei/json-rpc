@@ -1,8 +1,10 @@
 tests/          export-ignore
+scripts/        export-ignore
+.github/        export-ignore
 vendor/         export-ignore
 .gitattributes  export-ignore
 .gitignore      export-ignore
 .phpcs.xml      export-ignore
-composer.*      export-ignore
+composer.lock   export-ignore
 phpunit.xml     export-ignore
-README.*        export-ignore
+phpstan*.neon   export-ignore
