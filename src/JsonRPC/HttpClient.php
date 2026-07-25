@@ -245,13 +245,11 @@ final class HttpClient
         ]);
 
         $this->cookies->store($response->headerValues('Set-Cookie'));
-        $this->rejectEncodedBody($response);
 
         $decoded = $this->decode($response->body);
 
-        // Only an object or an array can be a JSON-RPC answer; a bare JSON
-        // scalar is a gateway speaking for itself, not the server answering.
-        $this->handleStatusCode($response, is_array($decoded));
+        $this->handleStatusCode($response, $decoded);
+        $this->rejectUnreadableBody($response, $decoded);
 
         return $decoded;
     }
@@ -348,17 +346,18 @@ final class HttpClient
      * @throws ResponseException
      * @throws ServerErrorException
      */
-    private function handleStatusCode(TransportResponse $response, bool $isJsonResponse): void
+    private function handleStatusCode(TransportResponse $response, mixed $decoded): void
     {
         $message = sprintf('Response with status code %d', $response->statusCode);
+        $carriesError = $this->carriesError($decoded);
 
         $exception = match ($response->statusCode) {
             401, 403 => new AccessDeniedException($message),
             404 => new ConnectionFailureException($message),
-            // A server answering an internal error with a JSON-RPC error object
-            // has said what went wrong; only a 500 that carries something else,
-            // an error page for instance, is reported as a server failure.
-            500 => $isJsonResponse ? null : new ServerErrorException($message),
+            // A server that says what went wrong in a JSON-RPC error object has
+            // answered the call; a 500 carrying anything else, an error page of
+            // a gateway for instance, is a server failure.
+            500 => $carriesError ? null : new ServerErrorException($message),
             default => null,
         };
 
@@ -367,12 +366,11 @@ final class HttpClient
         }
 
         // Redirects are never followed, so a 3xx is terminal whatever it carries.
-        // For the other status codes a JSON-RPC error object is a valid answer.
         if ($response->statusCode >= 300 && $response->statusCode < 400) {
             throw new ResponseException(sprintf('Unexpected response with status code %d', $response->statusCode));
         }
 
-        if ($isJsonResponse || $response->statusCode < 400 || $response->statusCode >= 600) {
+        if ($carriesError || $response->statusCode < 400 || $response->statusCode >= 600) {
             return;
         }
 
@@ -380,14 +378,45 @@ final class HttpClient
     }
 
     /**
-     * No transport negotiates compression, so a body that arrives encoded
-     * anyway cannot be read and has to be reported as such rather than as a
+     * Whether the answer is a JSON-RPC error object, the one thing that makes
+     * an error status code a real answer rather than a failure.
+     */
+    private function carriesError(mixed $decoded): bool
+    {
+        if (!is_array($decoded)) {
+            return false;
+        }
+
+        if (!array_is_list($decoded)) {
+            return isset($decoded['error']);
+        }
+
+        foreach ($decoded as $answer) {
+            if (is_array($answer) && isset($answer['error'])) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * A body that could not be read while it announces a content encoding was
+     * most likely never decoded, which is worth saying instead of reporting a
      * malformed payload.
+     *
+     * The header alone proves nothing: clients that decompress transparently,
+     * Symfony's PSR-18 client and cURL with CURLOPT_ENCODING among them, leave
+     * it on the response they hand over already decoded.
      *
      * @throws ResponseException
      */
-    private function rejectEncodedBody(TransportResponse $response): void
+    private function rejectUnreadableBody(TransportResponse $response, mixed $decoded): void
     {
+        if ($decoded !== null || trim($response->body) === '') {
+            return;
+        }
+
         $encoding = $response->headerValues('Content-Encoding')[0] ?? null;
 
         if ($encoding === null || $encoding === '' || strcasecmp($encoding, 'identity') === 0) {
@@ -395,7 +424,7 @@ final class HttpClient
         }
 
         throw new ResponseException(
-            sprintf('The response is encoded with "%s", which this client does not decode', $encoding),
+            sprintf('The response body could not be read, it is encoded with "%s"', $encoding),
         );
     }
 

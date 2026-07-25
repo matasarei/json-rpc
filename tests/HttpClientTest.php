@@ -252,7 +252,49 @@ final class HttpClientTest extends TestCase
         $this->assertSame($payload, $client->execute('{}'));
     }
 
-    public function testReportsABodyEncodedWithSomethingItCannotDecode(): void
+    public function testRelaysTheErrorsOfABatchAnsweredWith500(): void
+    {
+        $payload = [['jsonrpc' => '2.0', 'error' => ['code' => -32000, 'message' => 'boom'], 'id' => 1]];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 500));
+
+        $this->assertSame($payload, $client->execute('{}'));
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function bodiesThatAreNotErrorObjects(): array
+    {
+        return [
+            'a result' => [['jsonrpc' => '2.0', 'result' => 'looks fine', 'id' => 1]],
+            'a page of a gateway' => [['message' => 'Internal server error']],
+            'an empty array' => [[]],
+            'a list of nothing useful' => [[1, 2, 3]],
+        ];
+    }
+
+    #[DataProvider('bodiesThatAreNotErrorObjects')]
+    public function testReportsA500ThatDoesNotCarryAnErrorObject(mixed $body): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($body, 500));
+
+        $this->expectException(ServerErrorException::class);
+        $this->expectExceptionMessage('Response with status code 500');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsAnErrorStatusWhoseJsonBodyIsNotAnAnswer(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson(['message' => 'gateway'], 502));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 502');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsABodyThatStillCarriesItsCompression(): void
     {
         $transport = new FakeTransport(new TransportResponse(
             200,
@@ -262,16 +304,42 @@ final class HttpClientTest extends TestCase
         $client = new HttpClient('https://example.com/rpc', $transport);
 
         $this->expectException(ResponseException::class);
-        $this->expectExceptionMessage('encoded with "gzip", which this client does not decode');
+        $this->expectExceptionMessage('could not be read, it is encoded with "gzip"');
 
         $client->execute('{}');
     }
 
-    public function testAcceptsABodyDeclaredAsIdentityEncoded(): void
+    /**
+     * Clients that decompress on their own leave the header on the response
+     * they hand over already decoded.
+     */
+    public function testAcceptsAnAlreadyDecodedBodyThatStillDeclaresAnEncoding(): void
     {
-        $transport = new FakeTransport(new TransportResponse(200, '{"result":1}', ['content-encoding' => ['identity']]));
+        foreach (['gzip', 'identity'] as $encoding) {
+            $transport = new FakeTransport(new TransportResponse(
+                200,
+                '{"jsonrpc":"2.0","result":"pong","id":1}',
+                ['content-encoding' => [$encoding]],
+            ));
 
-        $this->assertSame(['result' => 1], (new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
+            $this->assertSame(
+                ['jsonrpc' => '2.0', 'result' => 'pong', 'id' => 1],
+                (new HttpClient('https://example.com/rpc', $transport))->execute('{}'),
+            );
+        }
+    }
+
+    public function testReportsAnAuthenticationFailureBeforeTheBodyIsJudged(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(
+            401,
+            (string) gzencode('{"error":"denied"}'),
+            ['content-encoding' => ['gzip']],
+        ));
+
+        $this->expectException(AccessDeniedException::class);
+
+        (new HttpClient('https://example.com/rpc', $transport))->execute('{}');
     }
 
     public function testReportsRedirectsBecauseTheyAreNeverFollowed(): void

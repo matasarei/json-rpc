@@ -82,6 +82,15 @@ final class StreamTransportTest extends TestCase
         $transport->send(new TransportRequest(self::$server->url('/truncated'), ''));
     }
 
+    public function testAcceptsAnAnswerDefinedToCarryNoBody(): void
+    {
+        // 204 may announce a length and still send nothing.
+        $response = (new StreamTransport())->send(new TransportRequest(self::$server->url('/empty-sized'), ''));
+
+        $this->assertSame(204, $response->statusCode);
+        $this->assertSame('', $response->body);
+    }
+
     public function testReportsAnUnusableUrlWithoutLeavingItsErrorHandlerBehind(): void
     {
         $handler = static fn(): bool => true;

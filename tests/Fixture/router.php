@@ -59,6 +59,12 @@ switch ($path) {
 
         return true;
 
+    case '/empty-sized':
+        http_response_code(204);
+        header('Content-Length: 38');
+
+        return true;
+
     case '/truncated':
         // Announce more than what is sent, then close.
         $payload = json_encode(['jsonrpc' => '2.0', 'result' => 'looks complete', 'id' => 1]);
