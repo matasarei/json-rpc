@@ -1,10 +1,13 @@
 JSON-RPC PHP Client and Server
 =============================
 
-[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml)
+[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg?branch=2.x)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml?query=branch%3A2.x)
 [![Latest Stable Version](https://img.shields.io/packagist/v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![Latest Beta](https://img.shields.io/packagist/v/fguillot/json-rpc?include_prereleases&label=beta)](https://github.com/matasarei/json-rpc/releases)
 [![Total Downloads](https://img.shields.io/packagist/dt/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
-[![PHP Version](https://img.shields.io/packagist/php-v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.4-777bb3?logo=php&logoColor=white)](https://www.php.net/supported-versions.php)
+[![PHPStan](https://img.shields.io/badge/PHPStan-max-brightgreen)](phpstan.neon)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](.github/workflows/main.yml)
 [![License](https://img.shields.io/packagist/l/fguillot/json-rpc.svg)](LICENSE)
 
 A simple JSON-RPC client/server that just works.
