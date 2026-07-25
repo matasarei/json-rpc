@@ -4,13 +4,21 @@
          bootstrap="vendor/autoload.php"
          cacheDirectory=".phpunit.cache"
          executionOrder="random"
+         requireCoverageMetadata="true"
+         beStrictAboutOutputDuringTests="true"
+         failOnRisky="true"
+         failOnWarning="true"
+         failOnNotice="true"
+         failOnDeprecation="true"
          colors="true">
     <testsuites>
         <testsuite name="JsonRPC">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
-    <source>
+    <source restrictNotices="true"
+            restrictWarnings="true"
+            ignoreIndirectDeprecations="true">
         <include>
             <directory>src</directory>
         </include>

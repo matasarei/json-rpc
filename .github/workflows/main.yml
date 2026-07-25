@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
       - name: Check PHP coding standard
-        run: vendor/bin/phpcs
+        run: composer lint
   # PHPStan static analysis
   phpstan:
     name: PHPStan static analysis
@@ -42,7 +42,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
       - name: Run static analysis
-        run: vendor/bin/phpstan analyse --no-progress --memory-limit=512M
+        run: composer stan
   # run PHP unit tests
   phpunit:
     name: PHPUnit tests
@@ -56,8 +56,22 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php_version }}
-          coverage: pcov
+          coverage: none
       - name: Install dependencies
         run: composer install --no-interaction --no-progress
       - name: Run tests
-        run: vendor/bin/phpunit
+        run: composer test
+  # the test suite has to cover every line of the source
+  coverage:
+    name: Code coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: pcov
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress
+      - name: Check coverage
+        run: composer coverage

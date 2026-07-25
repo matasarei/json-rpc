@@ -38,7 +38,7 @@
   },
   "scripts": {
     "lint": "phpcs",
-    "stan": "phpstan analyse --no-progress",
+    "stan": "phpstan analyse --no-progress --memory-limit=512M",
     "test": "phpunit",
     "coverage": [
       "phpunit --coverage-clover build/clover.xml",
