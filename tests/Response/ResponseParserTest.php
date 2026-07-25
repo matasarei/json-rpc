@@ -1,101 +1,167 @@
 <?php
 
+declare(strict_types=1);
+
+namespace JsonRPC\Tests\Response;
+
+use JsonRPC\Exception\InvalidJsonFormatException;
+use JsonRPC\Exception\InvalidJsonRpcFormatException;
+use JsonRPC\Exception\InvalidParamsException;
+use JsonRPC\Exception\MethodNotFoundException;
+use JsonRPC\Exception\ResponseException;
 use JsonRPC\Response\ResponseParser;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../vendor/autoload.php';
-
-class ResponseParserTest extends TestCase
+#[CoversClass(ResponseParser::class)]
+final class ResponseParserTest extends TestCase
 {
-    public function testSingleRequest()
-    {
-        $result = ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "result": "foobar", "id": "1"}', true))
-            ->parse();
+    private ResponseParser $parser;
 
-        $this->assertEquals('foobar', $result);
+    protected function setUp(): void
+    {
+        $this->parser = new ResponseParser();
     }
 
-    public function testWithBadJsonFormat()
+    public function testReturnsTheResult(): void
     {
-        $this->expectException('\JsonRPC\Exception\InvalidJsonFormatException');
-
-        ResponseParser::create()
-            ->withPayload('foobar')
-            ->parse();
+        $this->assertSame('foobar', $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
     }
 
-    public function testWithBadProcedure()
+    public function testReturnsNullWhenThereIsNoResultMember(): void
     {
-        $this->expectException('BadFunctionCallException');
-
-        ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32601, "message": "Method not found"}, "id": "1"}', true))
-            ->parse();
+        $this->assertNull($this->parser->parse(['jsonrpc' => '2.0', 'id' => 1]));
     }
 
-    public function testWithInvalidArgs()
+    public function testRejectsAnythingThatIsNotAnArray(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(InvalidJsonFormatException::class);
+        $this->expectExceptionMessage('Malformed payload');
 
-        ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}', true))
-            ->parse();
+        $this->parser->parse(null);
     }
 
-    public function testWithInvalidRequest()
+    public function testMapsParseErrors(): void
     {
-        $this->expectException('\JsonRPC\Exception\InvalidJsonRpcFormatException');
+        $this->expectException(InvalidJsonFormatException::class);
+        $this->expectExceptionMessage('Parse error: broken');
 
-        ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32600, "message": "Invalid Request"}, "id": null}', true))
-            ->parse();
+        $this->parser->parse(['error' => ['code' => -32700, 'message' => 'broken']]);
     }
 
-    public function testWithParseError()
+    public function testMapsInvalidRequests(): void
     {
-        $this->expectException('\JsonRPC\Exception\InvalidJsonFormatException');
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('Invalid Request: bad shape');
 
-        ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": -32700, "message": "Parse error"}, "id": null}', true))
-            ->parse();
+        $this->parser->parse(['error' => ['code' => -32600, 'message' => 'bad shape']]);
     }
 
-    public function testWithOtherError()
+    public function testMapsUnknownProcedures(): void
     {
-        $this->expectException('\JsonRPC\Exception\ResponseException');
+        $this->expectException(MethodNotFoundException::class);
+        $this->expectExceptionMessage('Procedure not found: Method not found');
 
-        ResponseParser::create()
-            ->withPayload(json_decode('{"jsonrpc": "2.0", "error": {"code": 42, "message": "Something", "data": "foobar"}, "id": null}', true))
-            ->parse();
+        $this->parser->parse(['error' => ['code' => -32601, 'message' => 'Method not found']]);
     }
 
-    public function testBatch()
+    public function testMapsInvalidParameters(): void
     {
-        $payload = '[
-            {"jsonrpc": "2.0", "result": 7, "id": "1"},
-            {"jsonrpc": "2.0", "result": 19, "id": "2"}
-        ]';
+        $this->expectException(InvalidParamsException::class);
+        $this->expectExceptionMessage('Invalid arguments: Invalid params');
 
-        $result = ResponseParser::create()
-            ->withPayload(json_decode($payload, true))
-            ->parse();
-
-        $this->assertEquals([7, 19], $result);
+        $this->parser->parse(['error' => ['code' => -32602, 'message' => 'Invalid params']]);
     }
 
-    public function testBatchWithError()
+    public function testMapsAnyOtherErrorToAResponseExceptionCarryingItsData(): void
     {
-        $payload = '[
-            {"jsonrpc": "2.0", "result": 7, "id": "1"},
-            {"jsonrpc": "2.0", "result": 19, "id": "2"},
-            {"jsonrpc": "2.0", "error": {"code": -32602, "message": "Invalid params"}, "id": "1"}
-        ]';
+        try {
+            $this->parser->parse(['error' => ['code' => 42, 'message' => 'Custom', 'data' => ['field' => 'name']]]);
+            $this->fail('An exception should have been thrown');
+        } catch (ResponseException $exception) {
+            $this->assertSame('Custom', $exception->getMessage());
+            $this->assertSame(42, $exception->getCode());
+            $this->assertSame(['field' => 'name'], $exception->getData());
+        }
+    }
 
-        $this->expectException('InvalidArgumentException');
+    public function testToleratesErrorObjectsWithoutAMessage(): void
+    {
+        $this->expectException(ResponseException::class);
 
-        ResponseParser::create()
-            ->withPayload(json_decode($payload, true))
-            ->parse();
+        $this->parser->parse(['error' => ['code' => 42]]);
+    }
+
+    public function testMatchesBatchAnswersByIdRegardlessOfTheirOrder(): void
+    {
+        $parsed = $this->parser->parseBatch(
+            [
+                ['jsonrpc' => '2.0', 'result' => 'second', 'id' => 2],
+                ['jsonrpc' => '2.0', 'result' => 'first', 'id' => 1],
+            ],
+            [1, 2],
+        );
+
+        $this->assertSame([0 => 'first', 1 => 'second'], $parsed['results']);
+        $this->assertSame([], $parsed['errors']);
+    }
+
+    public function testMatchesBatchAnswersWithStringIds(): void
+    {
+        $parsed = $this->parser->parseBatch([['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 'a']], ['a']);
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+    }
+
+    public function testReportsFailedCallsOfABatchByPosition(): void
+    {
+        $parsed = $this->parser->parseBatch(
+            [
+                ['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1],
+                ['jsonrpc' => '2.0', 'error' => ['code' => -32601, 'message' => 'Method not found'], 'id' => 2],
+            ],
+            [1, 2],
+        );
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+        $this->assertInstanceOf(MethodNotFoundException::class, $parsed['errors'][1]);
+    }
+
+    public function testReportsCallsTheServerNeverAnsweredFor(): void
+    {
+        $parsed = $this->parser->parseBatch([['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1]], [1, 2]);
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+        $this->assertInstanceOf(ResponseException::class, $parsed['errors'][1]);
+        $this->assertSame('No response received for the request with id 2', $parsed['errors'][1]->getMessage());
+    }
+
+    public function testIgnoresAnswersWithoutAUsableId(): void
+    {
+        $parsed = $this->parser->parseBatch(
+            [
+                ['jsonrpc' => '2.0', 'error' => ['code' => -32600, 'message' => 'Invalid Request'], 'id' => null],
+                'garbage',
+                ['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1],
+            ],
+            [1],
+        );
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+    }
+
+    public function testRejectsABatchAnswerThatIsNotAList(): void
+    {
+        $this->expectException(InvalidJsonFormatException::class);
+        $this->expectExceptionMessage('Malformed payload');
+
+        $this->parser->parseBatch(['jsonrpc' => '2.0', 'result' => 'not a batch', 'id' => 1], [1]);
+    }
+
+    public function testRejectsABatchAnswerThatIsNotAnArray(): void
+    {
+        $this->expectException(InvalidJsonFormatException::class);
+
+        $this->parser->parseBatch(null, [1]);
     }
 }

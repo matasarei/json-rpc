@@ -1,78 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Method JsonRPC\\Client\:\:__call\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:execute\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:execute\(\) has parameter \$reqattrs with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:notify\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:notify\(\) has parameter \$reqattrs with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:send\(\) should return Exception\|JsonRPC\\Client but returns null\.$#'
-			identifier: return.type
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:sendPayload\(\) never returns JsonRPC\\Client so it can be removed from the return type\.$#'
-			identifier: return.unusedType
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Method JsonRPC\\Client\:\:sendPayload\(\) should return Exception\|JsonRPC\\Client but returns array\|Exception\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Parameter \#1 \$id of method JsonRPC\\Request\\RequestBuilder\:\:withId\(\) expects null, string\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Parameter \#2 \$array of function implode expects array\<string\>, array given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Parameter \#2 \$headers of method JsonRPC\\HttpClient\:\:execute\(\) expects array\<string, string\>, array\<string\> given\.$#'
-			identifier: argument.type
-			count: 2
-			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Property JsonRPC\\Client\:\:\$batch type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Client.php
-
-		-
 			message: '#^Method JsonRPC\\Logger\\ErrorLogLogger\:\:log\(\) has parameter \$context with no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
@@ -307,42 +235,6 @@ parameters:
 			path: src/JsonRPC/Request/BatchRequestParser.php
 
 		-
-			message: '#^Method JsonRPC\\Request\\RequestBuilder\:\:build\(\) should return string but returns string\|false\.$#'
-			identifier: return.type
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
-			message: '#^Method JsonRPC\\Request\\RequestBuilder\:\:withParams\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
-			message: '#^Method JsonRPC\\Request\\RequestBuilder\:\:withRequestAttributes\(\) has parameter \$reqattrs with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
-			message: '#^Property JsonRPC\\Request\\RequestBuilder\:\:\$params type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
-			message: '#^Property JsonRPC\\Request\\RequestBuilder\:\:\$reqattrs type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
-			message: '#^Unsafe usage of new static\(\)\.$#'
-			identifier: new.static
-			count: 1
-			path: src/JsonRPC/Request/RequestBuilder.php
-
-		-
 			message: '#^Cannot access offset ''id'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
 			count: 2
@@ -463,122 +355,20 @@ parameters:
 			path: src/JsonRPC/Response/ResponseBuilder.php
 
 		-
-			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
-			identifier: foreach.nonIterable
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Binary operation "\." between ''Invalid Request\: '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Binary operation "\." between ''Invalid arguments\: '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Binary operation "\." between ''Parse error\: '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Binary operation "\." between ''Procedure not found…'' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
 			message: '#^Cannot access offset ''code'' on mixed\.$#'
 			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Cannot access offset ''data'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
 			path: src/JsonRPC/Response/ResponseParser.php
 
 		-
-			message: '#^Cannot access offset ''error'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 9
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Cannot access offset ''message'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 5
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Cannot access offset ''result'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
+			message: '#^Cannot cast mixed to int\.$#'
+			identifier: cast.int
 			count: 1
 			path: src/JsonRPC/Response/ResponseParser.php
 
 		-
-			message: '#^Method JsonRPC\\Response\\ResponseParser\:\:handleExceptions\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Method JsonRPC\\Response\\ResponseParser\:\:parse\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Method JsonRPC\\Response\\ResponseParser\:\:parse\(\) should return array\|Exception\|null but returns mixed\.$#'
-			identifier: return.type
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Method JsonRPC\\Response\\ResponseParser\:\:withReturnException\(\) has parameter \$returnException with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Parameter \#1 \$array of function array_keys expects array, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Parameter \#1 \$message of class JsonRPC\\Exception\\ResponseException constructor expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Parameter \#1 \$value of function count expects array\|Countable, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Parameter \#2 \$code of class JsonRPC\\Exception\\ResponseException constructor expects int, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Property JsonRPC\\Response\\ResponseParser\:\:\$returnException \(bool\) does not accept mixed\.$#'
-			identifier: assign.propertyType
-			count: 1
-			path: src/JsonRPC/Response/ResponseParser.php
-
-		-
-			message: '#^Unsafe usage of new static\(\)\.$#'
-			identifier: new.static
+			message: '#^Cannot cast mixed to string\.$#'
+			identifier: cast.string
 			count: 1
 			path: src/JsonRPC/Response/ResponseParser.php
 
@@ -767,6 +557,42 @@ parameters:
 			identifier: offsetAccess.invalidOffset
 			count: 3
 			path: src/JsonRPC/Validator/UserValidator.php
+
+		-
+			message: '#^Call to an undefined method JsonRPC\\Client\\BatchBuilder\:\:methodA\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Client/BatchBuilderTest.php
+
+		-
+			message: '#^Cannot call method send\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Client/BatchBuilderTest.php
+
+		-
+			message: '#^Call to an undefined method JsonRPC\\Client\:\:methodA\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/ClientTest.php
+
+		-
+			message: '#^Call to an undefined method JsonRPC\\Client\\BatchBuilder\:\:methodA\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/ClientTest.php
+
+		-
+			message: '#^Cannot call method send\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/ClientTest.php
+
+		-
+			message: '#^Result of method JsonRPC\\Client\:\:notify\(\) \(void\) is used\.$#'
+			identifier: method.void
+			count: 1
+			path: tests/ClientTest.php
 
 		-
 			message: '#^Cannot access offset ''Authorization'' on mixed\.$#'
@@ -1003,60 +829,6 @@ parameters:
 			path: tests/ProcedureHandlerTest.php
 
 		-
-			message: '#^Cannot access offset ''id'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Cannot access offset ''some\-attr'' on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilder\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilderAsNotification\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilderKeepsFalsyId\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilderWithAdditionalRequestAttributes\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilderWithoutId\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Method RequestBuilderTest\:\:testBuilderWithoutParams\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Request/RequestBuilderTest.php
-
-		-
-			message: '#^Parameter \#1 \$id of method JsonRPC\\Request\\RequestBuilder\:\:withId\(\) expects null, int given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Request/RequestBuilderTest.php
-
-		-
 			message: '#^Method ResponseBuilderTest\:\:testBuildResponse\(\) has no return type specified\.$#'
 			identifier: missingType.return
 			count: 1
@@ -1121,60 +893,6 @@ parameters:
 			identifier: missingType.return
 			count: 1
 			path: tests/Response/ResponseBuilderTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testBatch\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testBatchWithError\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testSingleRequest\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithBadJsonFormat\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithBadProcedure\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithInvalidArgs\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithInvalidRequest\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithOtherError\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
-
-		-
-			message: '#^Method ResponseParserTest\:\:testWithParseError\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/Response/ResponseParserTest.php
 
 		-
 			message: '#^Method HostValidatorTest\:\:testIpv6ClientIsRejectedByIpv4Cidr\(\) has no return type specified\.$#'
