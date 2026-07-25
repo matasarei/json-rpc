@@ -8,18 +8,8 @@
     <!-- directories and files to check -->
     <file>./src</file>
     <file>./tests</file>
-    <exclude-pattern>tests/Fixture/*</exclude-pattern>
+    <file>./scripts</file>
 
     <rule ref="PSR12"/>
-
-    <!--
-        Legacy test files still declare fixture classes at global scope.
-        These relaxations are removed once the suite is rewritten (milestone M7).
-    -->
-    <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
-        <exclude-pattern>tests/*</exclude-pattern>
-    </rule>
-    <rule ref="PSR1.Classes.ClassDeclaration.MultipleClasses">
-        <exclude-pattern>tests/*</exclude-pattern>
-    </rule>
+    <rule ref="Generic.PHP.RequireStrictTypes"/>
 </ruleset>
