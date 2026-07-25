@@ -47,8 +47,7 @@ class ResponseBuilderTest extends TestCase
 
     public function testBuildResponseWithResponseException()
     {
-        $exception = new ResponseException('Error', 42);
-        $exception->setData('Data');
+        $exception = new ResponseException('Error', 42, null, 'Data');
 
         $response = ResponseBuilder::create()
             ->withId(123)

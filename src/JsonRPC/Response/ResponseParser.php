@@ -2,11 +2,11 @@
 
 namespace JsonRPC\Response;
 
-use BadFunctionCallException;
 use Exception;
-use InvalidArgumentException;
 use JsonRPC\Exception\InvalidJsonFormatException;
 use JsonRPC\Exception\InvalidJsonRpcFormatException;
+use JsonRPC\Exception\InvalidParamsException;
+use JsonRPC\Exception\MethodNotFoundException;
 use JsonRPC\Exception\ResponseException;
 use JsonRPC\Validator\JsonFormatValidator;
 
@@ -74,9 +74,9 @@ class ResponseParser
      * @return array|Exception|null
      *
      * @throws InvalidJsonFormatException
-     * @throws BadFunctionCallException
+     * @throws MethodNotFoundException
      * @throws InvalidJsonRpcFormatException
-     * @throws InvalidArgumentException
+     * @throws InvalidParamsException
      * @throws Exception
      * @throws ResponseException
      */
@@ -126,9 +126,9 @@ class ResponseParser
             case -32600:
                 throw new InvalidJsonRpcFormatException('Invalid Request: ' . $this->payload['error']['message']);
             case -32601:
-                throw new BadFunctionCallException('Procedure not found: ' . $this->payload['error']['message']);
+                throw new MethodNotFoundException('Procedure not found: ' . $this->payload['error']['message']);
             case -32602:
-                throw new InvalidArgumentException('Invalid arguments: ' . $this->payload['error']['message']);
+                throw new InvalidParamsException('Invalid arguments: ' . $this->payload['error']['message']);
             default:
                 throw new ResponseException(
                     $this->payload['error']['message'],
