@@ -120,7 +120,7 @@ $server->getProcedureHandler()->withInstanceFactory($container->get(...));
 ```
 
 A method called before every procedure of an object can be registered with
-`withBeforeMethod('beforeProcedure')`; it receives the procedure name.
+`withBeforeMethod('beforeProcedure')`; it receives the name of the method about to run.
 
 ### Server inside a framework
 
@@ -174,6 +174,9 @@ $results = $client->batch()
 // [0 => 42, 1 => 7], in the order the calls were made
 ```
 
+Results are keyed by the position of the call among those that expect an answer, so
+notifications mixed into a batch do not leave holes in the array.
+
 Answers are matched to calls by request id, so a server answering out of order (which the
 specification allows) no longer mixes up results. A batch builder is single use: call
 `batch()` again for a new one.
@@ -187,8 +190,8 @@ use JsonRPC\Exception\BatchFailedException;
 try {
     $results = $client->batch()->add(4, 3)->missing()->send();
 } catch (BatchFailedException $e) {
-    $e->getResults(); // [0 => 7]              results of the calls that succeeded
-    $e->getErrors();  // [1 => MethodNotFoundException]  keyed by call position
+    $e->getResults(); // [0 => 7]                        results of the calls that succeeded
+    $e->getErrors();  // [1 => MethodNotFoundException]  errors, on the same keys
 }
 ```
 
@@ -207,13 +210,17 @@ $client->batch()
 
 ### Client exceptions
 
-Every exception thrown by the library implements `JsonRPC\Exception\JsonRpcException`.
+Every exception raised by a failed call implements `JsonRPC\Exception\JsonRpcException`,
+so a single `catch` covers them all. Misuse of the library itself is reported separately,
+with the usual SPL exceptions: `InvalidArgumentException` for a bad registration and
+`LogicException` for a call that does not make sense, such as sending a batch twice.
 
 | Exception | Raised when |
 |---|---|
 | `ConnectionFailureException` | the request did not complete, or the server answered 404 |
 | `AccessDeniedException` | the server answered 401 or 403 |
 | `ServerErrorException` | the server answered 500 |
+| `ResponseException` | the server answered 3xx, or any other error status without a JSON body, or a batch left one of the calls unanswered |
 | `MethodNotFoundException` | error code -32601 (extends `BadFunctionCallException`) |
 | `InvalidParamsException` | error code -32602 (extends `InvalidArgumentException`) |
 | `InvalidJsonFormatException` | error code -32700, or an answer that is not JSON |
@@ -246,10 +253,18 @@ $client = new Client($url, new HttpClient($url, new Psr18Transport(
 )));
 ```
 
-Authentication, cookies, logging and error handling work the same on every transport.
-Connection settings apply to the built-in transports:
+Authentication, cookies, logging and the reading of status codes work the same on every
+transport. Redirects are the exception: the built-in transports never follow one, while an
+injected PSR-18 client applies its own policy (Guzzle and symfony/http-client follow
+redirects unless told not to).
+
+Connection settings configure the built-in transports, so they apply to a client that was
+*not* given a transport of its own; on one that was, they raise a `LogicException` because
+the injected transport carries its own configuration.
 
 ```php
+$client = new Client('http://localhost/server.php');
+
 $client->getHttpClient()
     ->withTimeout(5)            // connection timeout in seconds
     ->withExecutionTimeout(30)  // total transfer timeout, 0 for no limit
@@ -257,6 +272,9 @@ $client->getHttpClient()
     ->withLocalCert('/path/to/client-certificate.pem')
     ->withTransportOptions([CURLOPT_INTERFACE => 'eth0']);
 ```
+
+`withTransportOptions()` is passed straight to the transport, so it can also override the
+library's own defaults, redirect handling included.
 
 ### Client logging and debugging
 
@@ -336,7 +354,7 @@ Version 2 is secure by default; each of these can be adjusted.
 | Internal error masking is **on** | Exceptions the library does not recognize become a generic `-32603 Internal error`, so database errors and file paths do not reach clients | `withInternalErrorMasking(false)` |
 | Batch limit is **100** | Larger batches are rejected with `-32600` | `withBatchLimit(0)` for no limit |
 | Objects expose only listed methods | `withObject($instance, ['a', 'b'])` publishes exactly those two | list more methods |
-| Redirects are never followed | A redirect would resend the `Authorization` and `Cookie` headers to the new location | not configurable |
+| Redirects are never followed | A redirect would resend the `Authorization` and `Cookie` headers to the new location | `withTransportOptions()`, or the policy of an injected PSR-18 client |
 
 See [SECURITY.md](SECURITY.md) for the full security model.
 

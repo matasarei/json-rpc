@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JsonRPC\Transport;
 
 use JsonRPC\Exception\ConnectionFailureException;
+use ValueError;
 
 /**
  * Fallback transport built on stream wrappers, used when cURL is unavailable.
@@ -26,9 +27,21 @@ final class StreamTransport implements TransportInterface
             return true;
         });
 
-        $stream = fopen(trim($request->url), 'r', false, $context);
-
-        restore_error_handler();
+        try {
+            $stream = fopen(trim($request->url), 'r', false, $context);
+        } catch (ValueError $exception) {
+            // An unusable URL, an empty one for instance, raises instead of
+            // returning false.
+            throw new ConnectionFailureException(
+                'Unable to establish a connection: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        } finally {
+            // The handler has to be restored on every path, otherwise it stays
+            // installed and swallows the errors of the host application.
+            restore_error_handler();
+        }
 
         if ($stream === false) {
             throw new ConnectionFailureException('Unable to establish a connection: ' . ($error ?? 'unknown error'));

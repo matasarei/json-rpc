@@ -28,8 +28,8 @@ complete v1 to v2 mapping.
 - Secure by default: internal error masking is on, batches are limited to 100 calls,
   `withObject()` requires an explicit method allowlist, and the server catches `Throwable`.
 - A request made only of notifications is answered with HTTP 204 and an empty body.
-- 401 and 403 answers now actually carry their status and headers; in 1.x they were set on
-  response builders that were discarded.
+- Status codes and headers are returned as part of the response instead of being emitted
+  with `header()` while the server runs.
 - Request ids come from an injectable generator backed by `random_int()`.
 - Test suite rewritten: no global function shadowing, PHPStan at max level without a
   baseline, and 100% line coverage enforced in CI.

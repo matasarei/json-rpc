@@ -140,6 +140,6 @@ final class Client
      */
     private function send(array $payload, array $headers): mixed
     {
-        return $this->httpClient->execute(json_encode($payload, JSON_THROW_ON_ERROR), $headers);
+        return $this->httpClient->execute(RequestBuilder::encode($payload), $headers);
     }
 }

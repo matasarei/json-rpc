@@ -102,10 +102,7 @@ final class BatchBuilder
             return [];
         }
 
-        $response = $this->httpClient->execute(
-            json_encode($this->payloads, JSON_THROW_ON_ERROR),
-            $headers,
-        );
+        $response = $this->httpClient->execute(RequestBuilder::encode($this->payloads), $headers);
 
         if ($this->expectedIds === []) {
             return [];

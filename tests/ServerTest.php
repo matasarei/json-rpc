@@ -11,6 +11,7 @@ use JsonRPC\ProcedureHandler;
 use JsonRPC\Server;
 use JsonRPC\Server\ServerRequest;
 use JsonRPC\Tests\Doubles\Procedures;
+use JsonSerializable;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -161,13 +162,99 @@ final class ServerTest extends TestCase
         $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
     }
 
-    public function testReportsAResponseThatCannotBeEncoded(): void
+    public function testReportsAResponseThatCannotBeEncodedKeepingItsId(): void
     {
         $this->server->getProcedureHandler()->withCallback('binary', fn(): string => "\xB1\x31");
 
         $body = $this->call('{"jsonrpc":"2.0","method":"binary","id":1}');
 
-        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":null}', $body);
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
+    }
+
+    public function testOneUnencodableResultDoesNotTakeTheWholeBatchDown(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('binary', fn(): string => "\xB1\x31");
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},
+            {"jsonrpc":"2.0","method":"binary","id":2}
+        ]');
+
+        $this->assertSame(
+            '[{"jsonrpc":"2.0","result":7,"id":1},'
+            . '{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":2}]',
+            $body,
+        );
+    }
+
+    public function testReportsAnExceptionRaisedWhileEncodingTheResponse(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new RuntimeException('secret at /var/db/credentials.ini');
+            }
+        });
+
+        $body = $this->call('{"jsonrpc":"2.0","method":"entity","id":1}');
+
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
+        $this->assertStringNotContainsString('secret', $body);
+    }
+
+    public function testAnswersARequestCarryingANullId(): void
+    {
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":7,"id":null}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":null}'),
+        );
+    }
+
+    public function testRejectsAnIdThatIsNotAStringANumberOrNull(): void
+    {
+        foreach (['{"a":1}', '[1,2]', 'true'] as $id) {
+            $this->assertSame(
+                '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}',
+                $this->call(sprintf('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":%s}', $id)),
+            );
+        }
+    }
+
+    public function testCallsVariadicProcedures(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('collect', fn(int ...$numbers): array => $numbers);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":[1,2,3],"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"collect","params":[1,2,3],"id":1}'),
+        );
+    }
+
+    public function testReportsAParameterOfTheWrongTypeAsInvalidParams(): void
+    {
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":["a","b"],"id":1}'),
+        );
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":[null,23],"id":1}'),
+        );
+    }
+
+    public function testLetsALocalExceptionExtendingAccessDeniedBubbleOut(): void
+    {
+        $exception = new class ('tenant mismatch') extends AccessDeniedException {
+        };
+
+        $this->server->withLocalException($exception::class);
+        $this->server->getProcedureHandler()->withCallback('boom', function () use ($exception): never {
+            throw $exception;
+        });
+
+        $this->expectExceptionObject($exception);
+
+        $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"boom","id":1}'));
     }
 
     public function testAnswers401WithoutTheExpectedCredentials(): void
