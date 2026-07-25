@@ -424,19 +424,22 @@ final class HttpClient
      */
     private function rejectUnreadableBody(TransportResponse $response, mixed $decoded): void
     {
-        if ($decoded !== null || !$this->isCompressed($response->body, $response)) {
+        if ($decoded !== null || !$this->isCompressed($response->body)) {
             return;
         }
 
-        $encoding = implode(', ', $response->headerValues('Content-Encoding'));
+        $declared = array_filter(
+            $response->headerValues('Content-Encoding'),
+            static fn(string $encoding): bool => $encoding !== '' && strcasecmp($encoding, 'identity') !== 0,
+        );
 
         throw new ResponseException(sprintf(
             'The response body is compressed%s and this client does not decode it',
-            $encoding === '' ? '' : sprintf(' with "%s"', $encoding),
+            $declared === [] ? '' : sprintf(' with "%s"', implode(', ', $declared)),
         ));
     }
 
-    private function isCompressed(string $body, TransportResponse $response): bool
+    private function isCompressed(string $body): bool
     {
         // Text this client simply cannot parse is not a compression problem,
         // whatever a Content-Encoding header left on the response says. It is
@@ -445,7 +448,7 @@ final class HttpClient
             return false;
         }
 
-        return $this->hasCompressionMagic($body) || $this->declaresAnEncoding($response);
+        return $this->hasCompressionMagic($body);
     }
 
     private function hasCompressionMagic(string $body): bool
@@ -459,20 +462,6 @@ final class HttpClient
         $first = ord($body[0]);
 
         return ($first & 0x0F) === 8 && ((($first << 8) + ord($body[1])) % 31) === 0;
-    }
-
-    /**
-     * Covers what has no magic bytes to look for, brotli and zstd among them.
-     */
-    private function declaresAnEncoding(TransportResponse $response): bool
-    {
-        foreach ($response->headerValues('Content-Encoding') as $encoding) {
-            if ($encoding !== '' && strcasecmp($encoding, 'identity') !== 0) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**

@@ -83,11 +83,13 @@ final readonly class ServerRequest
 
         // A proxy forwarding the original header passes "Basic <base64>" along;
         // a bare base64 value is accepted just as well.
+        $value = trim($value);
+
         if (stripos($value, 'Basic ') === 0) {
-            $value = substr($value, 6);
+            $value = trim(substr($value, 6));
         }
 
-        $credentials = base64_decode(trim($value), true);
+        $credentials = base64_decode($value, true);
 
         if ($credentials === false || !str_contains($credentials, ':')) {
             return null;

@@ -43,8 +43,9 @@ complete v1 to v2 mapping.
   request carrying `"id": null` is answered instead of being taken for a notification.
 - Answers are validated before they are returned: one carrying another request's id, or
   JSON that is neither a result nor an error, is refused instead of surfacing as `null`.
-- An error object is relayed whatever the status code carrying it, 500 included;
-  `ServerErrorException` is left for a 500 that carries something else.
+- An error object is relayed rather than replaced by the status code carrying it, 500
+  included; `ServerErrorException` is left for a 500 that carries something else. The
+  exceptions are 3xx, 401, 403 and 404, which are reported as they are.
 - The stream transport reports a body shorter than its `Content-Length` instead of
   handing over a truncated answer, and the cURL transport no longer lets libcurl add
   `Expect: 100-continue`, which cost a second per request above a megabyte.
