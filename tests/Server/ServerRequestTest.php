@@ -60,6 +60,15 @@ final class ServerRequestTest extends TestCase
         $this->assertSame(['user', 'pass:with:colons'], $request->credentials('X-Auth'));
     }
 
+    public function testReadsAnAlternativeHeaderForwardedWithItsScheme(): void
+    {
+        foreach (['Basic ', 'basic ', 'BASIC '] as $scheme) {
+            $request = ServerRequest::fromString('', ['HTTP_X_AUTH' => $scheme . base64_encode('user:pass')]);
+
+            $this->assertSame(['user', 'pass'], $request->credentials('X-Auth'));
+        }
+    }
+
     public function testFallsBackToTheStandardCredentialsWhenTheHeaderIsUnusable(): void
     {
         $variables = ['PHP_AUTH_USER' => 'user', 'PHP_AUTH_PW' => 'pass'];

@@ -424,7 +424,7 @@ final class HttpClient
      */
     private function rejectUnreadableBody(TransportResponse $response, mixed $decoded): void
     {
-        if ($decoded !== null || !$this->isCompressed($response->body)) {
+        if ($decoded !== null || !$this->isCompressed($response->body, $response)) {
             return;
         }
 
@@ -436,12 +436,20 @@ final class HttpClient
         ));
     }
 
-    private function isCompressed(string $body): bool
+    private function isCompressed(string $body, TransportResponse $response): bool
     {
-        if (strlen($body) < 2) {
+        // Text this client simply cannot parse is not a compression problem,
+        // whatever a Content-Encoding header left on the response says. It is
+        // also what a compressed body never is.
+        if (strlen($body) < 2 || preg_match('//u', $body) === 1) {
             return false;
         }
 
+        return $this->hasCompressionMagic($body) || $this->declaresAnEncoding($response);
+    }
+
+    private function hasCompressionMagic(string $body): bool
+    {
         if (str_starts_with($body, "\x1F\x8B")) {
             return true;
         }
@@ -451,6 +459,20 @@ final class HttpClient
         $first = ord($body[0]);
 
         return ($first & 0x0F) === 8 && ((($first << 8) + ord($body[1])) % 31) === 0;
+    }
+
+    /**
+     * Covers what has no magic bytes to look for, brotli and zstd among them.
+     */
+    private function declaresAnEncoding(TransportResponse $response): bool
+    {
+        foreach ($response->headerValues('Content-Encoding') as $encoding) {
+            if ($encoding !== '' && strcasecmp($encoding, 'identity') !== 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

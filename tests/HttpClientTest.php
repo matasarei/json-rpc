@@ -312,6 +312,33 @@ final class HttpClientTest extends TestCase
         $client->execute('{}');
     }
 
+    public function testDoesNotBlameCompressionForABinaryBodyThatAnnouncesNothing(): void
+    {
+        // Latin-1 text: not valid UTF-8, but no compression magic and nothing
+        // claiming it was encoded either.
+        foreach ([[], ['content-encoding' => ['identity']]] as $headers) {
+            $transport = new FakeTransport(new TransportResponse(200, "caf\xE9 is down", $headers));
+
+            $this->assertNull((new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
+        }
+    }
+
+    public function testReportsABodyEncodedWithSomethingThatHasNoMagicBytes(): void
+    {
+        // Brotli and zstd cannot be recognised from their first bytes, so the
+        // header is what says the body was never decoded.
+        $transport = new FakeTransport(new TransportResponse(
+            200,
+            "\x1B\x3F\x00\x00\xC4\xB2\xE1\x81",
+            ['content-encoding' => ['br']],
+        ));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('compressed with "br"');
+
+        (new HttpClient('https://example.com/rpc', $transport))->execute('{}');
+    }
+
     public function testReportsACompressedBodyEvenWithoutAHeaderSayingSo(): void
     {
         $body = (string) gzcompress('{"jsonrpc":"2.0","result":"pong","id":1}');
@@ -324,8 +351,9 @@ final class HttpClientTest extends TestCase
     }
 
     /**
-     * A body a client already decompressed is plain text, whatever the header
-     * left on the response still says.
+     * A body a client already decompressed is text, whatever the header left on
+     * the response still says. The last cases start with bytes a zlib header
+     * check alone would take for compression.
      *
      * @return array<string, array{string}>
      */
@@ -336,6 +364,9 @@ final class HttpClientTest extends TestCase
             'broken json' => ['{"jsonrpc":"2.0",'],
             'plain text' => ['service unavailable'],
             'a single byte' => ['x'],
+            'text starting with x and a space' => ['x  is down'],
+            'text starting with a digit' => ['80% of the fleet is down'],
+            'text in chinese' => ['老者不在'],
         ];
     }
 
