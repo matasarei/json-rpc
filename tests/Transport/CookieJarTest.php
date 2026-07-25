@@ -97,9 +97,16 @@ final class CookieJarTest extends TestCase
     {
         $jar = new CookieJar();
 
-        $jar->store(["sid=ab\0cd", "other=one\r\nX-Injected: yes", "safe=value"]);
+        $jar->store(["sid=ab\0cd", "other=one\r\nX-Injected: yes", "tabbed=a\tb", "del=a\x7Fb", 'safe=value']);
 
         $this->assertSame(['safe' => 'value'], $jar->cookies);
+    }
+
+    public function testRefusesCookiesGivenToTheConstructor(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        new CookieJar(['sid' => "a\0b"]);
     }
 
     public function testRefusesCookiesTheApplicationCannotSend(): void

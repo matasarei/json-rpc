@@ -220,14 +220,18 @@ a batch twice.
 |---|---|
 | `ConnectionFailureException` | the request did not complete, or the server answered 404 |
 | `AccessDeniedException` | the server answered 401 or 403 |
-| `ServerErrorException` | the server answered 500 |
-| `ResponseException` | the server answered 3xx, or any other error status without a JSON body, or a batch left one of the calls unanswered |
+| `ServerErrorException` | the server answered 500 with something other than a JSON-RPC error object |
+| `ResponseException` | the server answered 3xx, or an error status carrying something that is not an answer, or the answer belongs to another request, or a batch left one of the calls unanswered |
+| `InvalidJsonRpcFormatException` | error code -32600, or an answer with neither a result nor an error member |
 | `MethodNotFoundException` | error code -32601 (extends `BadFunctionCallException`) |
 | `InvalidParamsException` | error code -32602 (extends `InvalidArgumentException`) |
 | `InvalidJsonFormatException` | error code -32700, or an answer that is not JSON |
-| `InvalidJsonRpcFormatException` | error code -32600 |
-| `ResponseException` | any other error object; `getData()` returns its data member |
 | `BatchFailedException` | at least one call of a batch failed |
+
+An error object the server sends is relayed whatever the status code carrying it,
+including 500. Answers are checked before they are returned: one that carries another
+request's id, or that is JSON without being an answer at all — a maintenance page in front
+of the endpoint, for instance — is refused rather than returned as a `null` result.
 
 ### Using another HTTP client
 
@@ -255,9 +259,10 @@ $client = new Client($url, new HttpClient($url, new Psr18Transport(
 ```
 
 Authentication, cookies, logging and the reading of status codes work the same on every
-transport. Redirects are the exception: the built-in transports never follow one, while an
-injected PSR-18 client applies its own policy (Guzzle and symfony/http-client follow
-redirects unless told not to).
+transport. Redirects are the exception: the built-in transports never follow one, and so
+does Guzzle through its PSR-18 entry point, but symfony/http-client follows them unless
+its `max_redirects` option is set to `0`. Compression is another: the built-in transports
+do not negotiate it, while a PSR-18 client that does will decode the body for you.
 
 Connection settings configure the built-in transports, so they apply to a client that was
 *not* given a transport of its own; on one that was, they raise a `LogicException` because

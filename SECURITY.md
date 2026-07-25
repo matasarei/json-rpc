@@ -54,8 +54,9 @@ The hardening that was opt-in in 1.5 is the default behaviour in 2.0.
   location the server operator does not necessarily control. A `3xx` answer is reported as
   an error instead. Two things can change that, and both are yours to decide:
   `withTransportOptions()` passes raw options to the transport, redirect settings included,
-  and an injected PSR-18 client applies its own policy (Guzzle and symfony/http-client
-  follow redirects by default, so disable that on a client you inject).
+  and an injected PSR-18 client applies its own policy. Guzzle disables redirects on its
+  PSR-18 entry point, symfony/http-client follows them unless you set `max_redirects` to
+  `0`, so check the client you inject.
 
 - **Headers cannot be injected into a request.** A header name or value containing a
   carriage return, a line feed or a null byte is refused, so an application putting a
