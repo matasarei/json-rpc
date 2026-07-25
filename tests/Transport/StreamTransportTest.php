@@ -82,6 +82,16 @@ final class StreamTransportTest extends TestCase
         $transport->send(new TransportRequest(self::$server->url('/truncated'), ''));
     }
 
+    public function testRefusesAResponseWhoseAnnouncedLengthsContradictEachOther(): void
+    {
+        $transport = new StreamTransport();
+
+        $this->expectException(ConnectionFailureException::class);
+        $this->expectExceptionMessage('contradictory Content-Length values');
+
+        $transport->send(new TransportRequest(self::$server->url('/contradictory-length'), ''));
+    }
+
     public function testAcceptsAnAnswerDefinedToCarryNoBody(): void
     {
         // 204 may announce a length and still send nothing.

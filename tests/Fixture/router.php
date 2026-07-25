@@ -59,6 +59,15 @@ switch ($path) {
 
         return true;
 
+    case '/contradictory-length':
+        $payload = json_encode(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1]);
+        header('Content-Type: application/json');
+        header('Content-Length: 900');
+        header('Content-Length: ' . strlen((string) $payload), false);
+        echo $payload;
+
+        return true;
+
     case '/empty-sized':
         http_response_code(204);
         header('Content-Length: 38');

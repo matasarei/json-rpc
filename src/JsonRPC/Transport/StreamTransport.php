@@ -75,10 +75,15 @@ final class StreamTransport implements TransportInterface
             return;
         }
 
-        $announced = array_unique($response->headerValues('Content-Length'));
+        $announced = array_values(array_unique($response->headerValues('Content-Length')));
 
-        // Lengths that disagree with each other say nothing reliable.
-        if (count($announced) !== 1 || !ctype_digit($announced[0])) {
+        // Lengths that contradict each other make the message unframeable, so
+        // there is no telling what was received.
+        if (count($announced) > 1) {
+            throw new ConnectionFailureException('The response announces contradictory Content-Length values');
+        }
+
+        if ($announced === [] || !ctype_digit($announced[0])) {
             return;
         }
 

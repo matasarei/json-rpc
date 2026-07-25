@@ -268,8 +268,11 @@ final class HttpClientTest extends TestCase
         return [
             'a result' => [['jsonrpc' => '2.0', 'result' => 'looks fine', 'id' => 1]],
             'a page of a gateway' => [['message' => 'Internal server error']],
+            'a page with an error member of its own' => [['error' => 'upstream connect error']],
+            'a page with an error object of its own' => [['error' => ['message' => 'Bad Gateway']]],
             'an empty array' => [[]],
             'a list of nothing useful' => [[1, 2, 3]],
+            'a batch of pages' => [[['error' => 'upstream connect error']]],
         ];
     }
 
@@ -299,14 +302,49 @@ final class HttpClientTest extends TestCase
         $transport = new FakeTransport(new TransportResponse(
             200,
             (string) gzencode('{"jsonrpc":"2.0","result":"pong","id":1}'),
-            ['content-encoding' => ['gzip']],
+            ['content-encoding' => ['identity', 'gzip']],
         ));
         $client = new HttpClient('https://example.com/rpc', $transport);
 
         $this->expectException(ResponseException::class);
-        $this->expectExceptionMessage('could not be read, it is encoded with "gzip"');
+        $this->expectExceptionMessage('compressed with "identity, gzip"');
 
         $client->execute('{}');
+    }
+
+    public function testReportsACompressedBodyEvenWithoutAHeaderSayingSo(): void
+    {
+        $body = (string) gzcompress('{"jsonrpc":"2.0","result":"pong","id":1}');
+        $client = new HttpClient('https://example.com/rpc', new FakeTransport(new TransportResponse(200, $body)));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('The response body is compressed and this client does not decode it');
+
+        $client->execute('{}');
+    }
+
+    /**
+     * A body a client already decompressed is plain text, whatever the header
+     * left on the response still says.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function bodiesThatAreNotCompressed(): array
+    {
+        return [
+            'a maintenance page' => ['<html><body>maintenance</body></html>'],
+            'broken json' => ['{"jsonrpc":"2.0",'],
+            'plain text' => ['service unavailable'],
+            'a single byte' => ['x'],
+        ];
+    }
+
+    #[DataProvider('bodiesThatAreNotCompressed')]
+    public function testDoesNotBlameCompressionForABodyThatIsSimplyNotJson(string $body): void
+    {
+        $transport = new FakeTransport(new TransportResponse(200, $body, ['content-encoding' => ['gzip']]));
+
+        $this->assertNull((new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
     }
 
     /**

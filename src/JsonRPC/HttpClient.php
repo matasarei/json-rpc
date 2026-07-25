@@ -382,6 +382,10 @@ final class HttpClient
     /**
      * Whether the answer is a JSON-RPC error object, the one thing that makes
      * an error status code a real answer rather than a failure.
+     *
+     * An error page that happens to have an "error" member of its own does not
+     * qualify: only a member holding a code does, which is what the response
+     * parser reads as well.
      */
     private function carriesError(mixed $decoded): bool
     {
@@ -390,11 +394,11 @@ final class HttpClient
         }
 
         if (!array_is_list($decoded)) {
-            return isset($decoded['error']);
+            return $this->isErrorObject($decoded['error'] ?? null);
         }
 
         foreach ($decoded as $answer) {
-            if (is_array($answer) && isset($answer['error'])) {
+            if (is_array($answer) && $this->isErrorObject($answer['error'] ?? null)) {
                 return true;
             }
         }
@@ -402,32 +406,51 @@ final class HttpClient
         return false;
     }
 
+    private function isErrorObject(mixed $error): bool
+    {
+        return is_array($error) && isset($error['code']);
+    }
+
     /**
-     * A body that could not be read while it announces a content encoding was
-     * most likely never decoded, which is worth saying instead of reporting a
-     * malformed payload.
+     * A body that arrives compressed cannot be read, which is worth saying
+     * instead of reporting a malformed payload.
      *
-     * The header alone proves nothing: clients that decompress transparently,
-     * Symfony's PSR-18 client and cURL with CURLOPT_ENCODING among them, leave
-     * it on the response they hand over already decoded.
+     * The Content-Encoding header proves nothing on its own: clients that
+     * decompress transparently, Symfony's PSR-18 client and cURL with
+     * CURLOPT_ENCODING among them, leave it on the body they hand over already
+     * decoded. Only the bytes tell.
      *
      * @throws ResponseException
      */
     private function rejectUnreadableBody(TransportResponse $response, mixed $decoded): void
     {
-        if ($decoded !== null || trim($response->body) === '') {
+        if ($decoded !== null || !$this->isCompressed($response->body)) {
             return;
         }
 
-        $encoding = $response->headerValues('Content-Encoding')[0] ?? null;
+        $encoding = implode(', ', $response->headerValues('Content-Encoding'));
 
-        if ($encoding === null || $encoding === '' || strcasecmp($encoding, 'identity') === 0) {
-            return;
+        throw new ResponseException(sprintf(
+            'The response body is compressed%s and this client does not decode it',
+            $encoding === '' ? '' : sprintf(' with "%s"', $encoding),
+        ));
+    }
+
+    private function isCompressed(string $body): bool
+    {
+        if (strlen($body) < 2) {
+            return false;
         }
 
-        throw new ResponseException(
-            sprintf('The response body could not be read, it is encoded with "%s"', $encoding),
-        );
+        if (str_starts_with($body, "\x1F\x8B")) {
+            return true;
+        }
+
+        // A zlib stream starts with a deflate compression method and a header
+        // checksum that is a multiple of 31.
+        $first = ord($body[0]);
+
+        return ($first & 0x0F) === 8 && ((($first << 8) + ord($body[1])) % 31) === 0;
     }
 
     /**
