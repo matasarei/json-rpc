@@ -7,7 +7,7 @@ namespace JsonRPC\Transport;
 /**
  * Picks the built-in transport that can run on this installation.
  */
-final readonly class DefaultTransportFactory
+final readonly class DefaultTransportFactory implements TransportFactoryInterface
 {
     /**
      * @param bool|null $curlAvailable Overrides the cURL extension detection

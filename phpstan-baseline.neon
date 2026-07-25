@@ -61,238 +61,16 @@ parameters:
 			path: src/JsonRPC/Client.php
 
 		-
+			message: '#^Parameter \#2 \$headers of method JsonRPC\\HttpClient\:\:execute\(\) expects array\<string, string\>, array\<string\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: src/JsonRPC/Client.php
+
+		-
 			message: '#^Property JsonRPC\\Client\:\:\$batch type has no value type specified in iterable type array\.$#'
 			identifier: missingType.iterableValue
 			count: 1
 			path: src/JsonRPC/Client.php
-
-		-
-			message: '#^Binary operation "\." between ''Response\: '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Binary operation "\." between non\-falsy\-string and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Call to function is_array\(\) with array will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Call to function is_callable\(\) with Closure will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Call to function is_string\(\) with string will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:addOption\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:buildHeaders\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:buildHeaders\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:execute\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:execute\(\) should return array but returns mixed\.$#'
-			identifier: return.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:getCookies\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:handleExceptions\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:handleExceptions\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:parseCookies\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:parseCookies\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:setOptions\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:setOptions\(\) has parameter \$options with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:withCookies\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:withCookies\(\) has parameter \$cookies with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:withHeaders\(\) has parameter \$headers with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Method JsonRPC\\HttpClient\:\:withSslLocalCert\(\) has parameter \$path with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$haystack of function stripos expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$headers of method JsonRPC\\HttpClient\:\:handleExceptions\(\) expects array, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$headers of method JsonRPC\\HttpClient\:\:parseCookies\(\) expects array, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$headers of method JsonRPC\\HttpClient\:\:redactHeaders\(\) expects array\<string\>, array given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$headers of method JsonRPC\\HttpClient\:\:redactHeaders\(\) expects array\<string\>, mixed given\.$#'
-			identifier: argument.type
-			count: 2
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|true given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$string of function rtrim expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$string of function strlen expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#1 \$string of function substr expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#2 \$headers of method JsonRPC\\HttpClient\:\:buildContext\(\) expects array\<string\>, array given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#2 \$subject of function preg_match expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#2 \.\.\.\$values of function sprintf expects bool\|float\|int\|string\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Parameter \#3 \$value of function curl_setopt expects non\-empty\-string, string given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Property JsonRPC\\HttpClient\:\:\$cookies type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Property JsonRPC\\HttpClient\:\:\$headers type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Property JsonRPC\\HttpClient\:\:\$options type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/HttpClient.php
-
-		-
-			message: '#^Property JsonRPC\\HttpClient\:\:\$sslLocalCert \(string\) does not accept mixed\.$#'
-			identifier: assign.propertyType
-			count: 1
-			path: src/JsonRPC/HttpClient.php
 
 		-
 			message: '#^Method JsonRPC\\Logger\\ErrorLogLogger\:\:log\(\) has parameter \$context with no value type specified in iterable type array\.$#'
@@ -991,118 +769,40 @@ parameters:
 			path: src/JsonRPC/Validator/UserValidator.php
 
 		-
-			message: '#^Call to an undefined method Exception\|JsonRPC\\Client\:\:execute\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot access offset ''Authorization'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
-			message: '#^Call to an undefined method Exception\|JsonRPC\\Client\:\:notify\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot access offset ''Content\-Type'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
-			message: '#^Call to an undefined method Exception\|JsonRPC\\Client\:\:send\(\)\.$#'
-			identifier: method.notFound
+			message: '#^Cannot access offset ''Cookie'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
-			message: '#^Call to method PHPUnit\\Framework\\Assert\:\:assertNull\(\) with Exception\|JsonRPC\\Client will always evaluate to false\.$#'
-			identifier: method.impossibleType
+			message: '#^Cannot access offset ''content\-type'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
-			message: '#^Cannot call method expects\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 7
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Cannot call method method\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 7
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Cannot call method notify\(\) on JsonRPC\\Client\|null\.$#'
-			identifier: method.nonObject
+			message: '#^Cannot access offset ''set\-cookie'' on mixed\.$#'
+			identifier: offsetAccess.nonOffsetAccessible
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
-			message: '#^Cannot call method send\(\) on JsonRPC\\Client\|null\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Cannot call method willReturn\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 7
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Cannot call method with\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 7
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendBatch\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendBatchOfNotificationsOnly\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendBatchWithMixedCallsAndNotifications\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendNotification\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendRequest\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendRequestWithError\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Method ClientTest\:\:testSendRequestWithErrorAndReturnExceptionEnabled\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Parameter \#3 \$httpClient of class JsonRPC\\Client constructor expects JsonRPC\\HttpClient\|null, mixed given\.$#'
+			message: '#^Parameter \#2 \$haystack of method PHPUnit\\Framework\\Assert\:\:assertStringContainsString\(\) expects string, mixed given\.$#'
 			identifier: argument.type
-			count: 7
-			path: tests/ClientTest.php
-
-		-
-			message: '#^Property ClientTest\:\:\$httpClient has no type specified\.$#'
-			identifier: missingType.property
 			count: 1
-			path: tests/ClientTest.php
+			path: tests/HttpClientTest.php
 
 		-
 			message: '#^Method FirstMiddleware\:\:execute\(\) has no return type specified\.$#'
