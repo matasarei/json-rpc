@@ -1,12 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
 /**
- * Class AccessDeniedException
- *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * The client is not allowed to reach the server (host restriction, middleware).
  */
 class AccessDeniedException extends RpcCallFailedException
 {

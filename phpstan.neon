@@ -1,7 +1,9 @@
-includes:
-    - phpstan-baseline.neon
-
 parameters:
-    level: 4
+    level: max
     paths:
         - src
+        - tests
+        - scripts
+    excludePaths:
+        analyse:
+            - tests/Fixture/*

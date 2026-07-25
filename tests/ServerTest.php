@@ -1,359 +1,523 @@
 <?php
 
+declare(strict_types=1);
+
+namespace JsonRPC\Tests;
+
+use DomainException;
 use JsonRPC\Exception\AccessDeniedException;
-use JsonRPC\Exception\AuthenticationFailureException;
-use JsonRPC\Exception\ResponseException;
+use JsonRPC\MiddlewareHandler;
 use JsonRPC\MiddlewareInterface;
-use JsonRPC\Response\HeaderMockTest;
+use JsonRPC\ProcedureHandler;
 use JsonRPC\Server;
+use JsonRPC\Server\ServerRequest;
+use JsonRPC\Tests\Doubles\Procedures;
+use JsonSerializable;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/Response/HeaderMockTest.php';
-
-class MyException extends Exception
+#[CoversClass(Server::class)]
+final class ServerTest extends TestCase
 {
+    private Server $server;
 
-}
-
-class DummyMiddleware implements MiddlewareInterface
-{
-    public function execute($username, $password, $procedureName)
+    protected function setUp(): void
     {
-        throw new AuthenticationFailureException('Bad user');
-    }
-}
-
-class ServerTest extends HeaderMockTest
-{
-    private $payload = '{"jsonrpc": "2.0", "method": "sum", "params": [1,2,4], "id": "1"}';
-
-    public function testCustomAuthenticationHeader()
-    {
-        $env = [
-            'HTTP_X_AUTH' => base64_encode('myuser:mypassword'),
-        ];
-
-        $server = new Server($this->payload, $env);
-        $server->setAuthenticationHeader('X-Auth');
-        $this->assertEquals('myuser', $server->getUsername());
-        $this->assertEquals('mypassword', $server->getPassword());
+        $this->server = new Server();
+        $this->server->getProcedureHandler()->withCallback('sum', fn(int $a, int $b): int => $a + $b);
     }
 
-    public function testCustomAuthenticationHeaderWithColonInPassword()
+    /**
+     * @param array<string, mixed> $serverVariables
+     */
+    private function call(string $body, array $serverVariables = []): string
     {
-        $env = [
-            'HTTP_X_AUTH' => base64_encode('myuser:my:pass:word'),
-        ];
-
-        $server = new Server($this->payload, $env);
-        $server->setAuthenticationHeader('X-Auth');
-        $this->assertEquals('myuser', $server->getUsername());
-        $this->assertEquals('my:pass:word', $server->getPassword());
+        return $this->server->execute(ServerRequest::fromString($body, $serverVariables))->body;
     }
 
-    public function testCustomAuthenticationHeaderWithMalformedValue()
+    public function testAnswersACall(): void
     {
-        $env = [
-            'HTTP_X_AUTH' => base64_encode('no-separator'),
-        ];
+        $response = $this->server->execute(
+            ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1}'),
+        );
 
-        $server = new Server($this->payload, $env);
-        $server->setAuthenticationHeader('X-Auth');
-        $this->assertNull($server->getUsername());
-        $this->assertNull($server->getPassword());
+        $this->assertSame('{"jsonrpc":"2.0","result":7,"id":1}', $response->body);
+        $this->assertSame(200, $response->statusCode);
+        $this->assertSame(['Content-Type' => 'application/json'], $response->headers);
     }
 
-    public function testCustomAuthenticationHeaderWithEmptyValue()
+    public function testAnswersNothingToANotification(): void
     {
-        $server = new Server($this->payload);
-        $server->setAuthenticationHeader('X-Auth');
-        $this->assertNull($server->getUsername());
-        $this->assertNull($server->getPassword());
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","params":[3,4]}'));
+
+        $this->assertSame('', $response->body);
+        $this->assertSame(204, $response->statusCode);
+        $this->assertSame([], $response->headers);
     }
 
-    public function testGetUsername()
+    public function testReportsAMalformedPayload(): void
     {
-        $server = new Server($this->payload);
-        $this->assertNull($server->getUsername());
-
-        $server = new Server($this->payload, ['PHP_AUTH_USER' => 'username']);
-        $this->assertEquals('username', $server->getUsername());
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}',
+            $this->call('{"jsonrpc": "2.0", "method": '),
+        );
     }
 
-    public function testGetPassword()
+    public function testAnswersABatch(): void
     {
-        $server = new Server($this->payload);
-        $this->assertNull($server->getPassword());
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":2}
+        ]');
 
-        $server = new Server($this->payload, ['PHP_AUTH_PW' => 'password']);
-        $this->assertEquals('password', $server->getPassword());
+        $this->assertSame('[{"jsonrpc":"2.0","result":7,"id":1},{"jsonrpc":"2.0","result":2,"id":2}]', $body);
     }
 
-    public function testGetCredentialsKeepsZeroString()
+    public function testAnswersNothingToABatchOfNotifications(): void
     {
-        $env = [
-            'HTTP_X_AUTH' => base64_encode('0:0'),
-        ];
+        $response = $this->server->execute(ServerRequest::fromString(
+            '[{"jsonrpc":"2.0","method":"sum","params":[3,4]},{"jsonrpc":"2.0","method":"sum","params":[1,1]}]',
+        ));
 
-        $server = new Server($this->payload, $env);
-        $server->setAuthenticationHeader('X-Auth');
-        $this->assertSame('0', $server->getUsername());
-        $this->assertSame('0', $server->getPassword());
+        $this->assertSame('', $response->body);
+        $this->assertSame(204, $response->statusCode);
     }
 
-    public function testExecute()
+    public function testRejectsABatchOverTheLimit(): void
     {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            return $a + $b + $c;
+        $this->server->withBatchLimit(2);
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1},
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":2},
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":3}
+        ]');
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}',
+            $body,
+        );
+    }
+
+    public function testAcceptsABatchOfExactlyTheLimit(): void
+    {
+        $this->server->withBatchLimit(2);
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1},
+            {"jsonrpc":"2.0","method":"sum","params":[2,2],"id":2}
+        ]');
+
+        $this->assertSame('[{"jsonrpc":"2.0","result":2,"id":1},{"jsonrpc":"2.0","result":4,"id":2}]', $body);
+    }
+
+    public function testABatchLimitOfZeroMeansNoLimit(): void
+    {
+        $this->server->withBatchLimit(0);
+
+        $requests = array_fill(0, 200, '{"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1}');
+
+        $this->assertStringStartsWith('[{"jsonrpc":"2.0","result":2', $this->call('[' . implode(',', $requests) . ']'));
+    }
+
+    public function testTheDefaultBatchLimitIsOneHundred(): void
+    {
+        $requests = array_fill(0, 101, '{"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1}');
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}',
+            $this->call('[' . implode(',', $requests) . ']'),
+        );
+    }
+
+    public function testMasksInternalErrorsByDefault(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('boom', function (): never {
+            throw new RuntimeException('secret at /var/db/credentials.ini', 1234);
         });
 
-        self::$functions
-            ->expects($this->once())
-            ->method('header')
-            ->with('Content-Type: application/json');
+        $body = $this->call('{"jsonrpc":"2.0","method":"boom","id":1}');
 
-        $this->assertEquals('{"jsonrpc":"2.0","result":7,"id":"1"}', $server->execute());
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
     }
 
-    public function testInternalErrorMaskingHidesExceptionMessage()
+    public function testRelaysInternalErrorsWhenMaskingIsTurnedOff(): void
     {
-        $server = new Server($this->payload);
-        $server->withInternalErrorMasking();
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new RuntimeException('secret: SQLSTATE table users does not exist');
+        $this->server->withInternalErrorMasking(false);
+        $this->server->getProcedureHandler()->withCallback('boom', function (): never {
+            throw new RuntimeException('Database is down', 1234);
         });
 
-        $response = json_decode($server->execute(), true);
+        $body = $this->call('{"jsonrpc":"2.0","method":"boom","id":1}');
 
-        $this->assertSame(-32603, $response['error']['code']);
-        $this->assertSame('Internal error', $response['error']['message']);
-        $this->assertStringNotContainsString('secret', json_encode($response));
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":1234,"message":"Database is down"},"id":1}', $body);
     }
 
-    public function testInternalErrorMaskingHidesInvalidArgumentExceptionMessage()
+    public function testTurnsErrorsThrownByPhpIntoInternalErrors(): void
     {
-        $server = new Server($this->payload);
-        $server->withInternalErrorMasking();
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new InvalidArgumentException('secret: /var/db/creds.ini');
+        $this->server->getProcedureHandler()->withCallback('broken', fn(): int => intdiv(1, 0));
+
+        $body = $this->call('{"jsonrpc":"2.0","method":"broken","id":1}');
+
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
+    }
+
+    public function testReportsAResponseThatCannotBeEncodedKeepingItsId(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('binary', fn(): string => "\xB1\x31");
+
+        $body = $this->call('{"jsonrpc":"2.0","method":"binary","id":1}');
+
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
+    }
+
+    public function testOneUnencodableResultDoesNotTakeTheWholeBatchDown(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('binary', fn(): string => "\xB1\x31");
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},
+            {"jsonrpc":"2.0","method":"binary","id":2}
+        ]');
+
+        $this->assertSame(
+            '[{"jsonrpc":"2.0","result":7,"id":1},'
+            . '{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":2}]',
+            $body,
+        );
+    }
+
+    public function testKeepsTheBatchReadableWhenAnErrorMessageIsNotValidUtf8(): void
+    {
+        $this->server->withInternalErrorMasking(false);
+        $this->server->getProcedureHandler()
+            ->withCallback('ping', fn(): string => 'pong')
+            ->withCallback('entity', fn(): object => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    throw new RuntimeException("row \xE9\xE8 is broken");
+                }
+            });
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"ping","id":"a"},
+            {"jsonrpc":"2.0","method":"entity","id":"b"}
+        ]');
+
+        /** @var list<array{result?: string, error?: array{code: int}}> $decoded */
+        $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertCount(2, $decoded);
+        $this->assertSame('pong', $decoded[0]['result'] ?? null);
+        $this->assertSame(-32603, $decoded[1]['error']['code'] ?? null);
+    }
+
+    public function testAnswersAStatusCodeForAnAccessFailureRaisedWhileEncoding(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new AccessDeniedException('Not for you');
+            }
         });
 
-        $response = json_decode($server->execute(), true);
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"entity","id":1}'));
 
-        $this->assertSame(-32602, $response['error']['code']);
-        $this->assertSame('Invalid params', $response['error']['message']);
-        $this->assertArrayNotHasKey('data', $response['error']);
-        $this->assertStringNotContainsString('secret', json_encode($response));
+        $this->assertSame(403, $response->statusCode);
     }
 
-    public function testWithoutInternalErrorMaskingLeaksExceptionMessage()
+    public function testReportsAnExceptionRaisedWhileEncodingTheResponse(): void
     {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new RuntimeException('leaked details');
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new RuntimeException('secret at /var/db/credentials.ini');
+            }
         });
 
-        $response = json_decode($server->execute(), true);
+        $body = $this->call('{"jsonrpc":"2.0","method":"entity","id":1}');
 
-        $this->assertSame('leaked details', $response['error']['message']);
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}', $body);
+        $this->assertStringNotContainsString('secret', $body);
     }
 
-    public function testBatchLimitRejectsOversizedBatch()
+    public function testAnswersARequestCarryingANullId(): void
     {
-        $batch = '[' . implode(',', array_fill(0, 3, '{"jsonrpc":"2.0","method":"sum","params":[1,2,3],"id":1}')) . ']';
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":7,"id":null}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":null}'),
+        );
+    }
 
-        $server = new Server($batch);
-        $server->withBatchLimit(2);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            return $a + $b + $c;
+    public function testARefusedElementDoesNotTakeDownTheRestOfTheBatch(): void
+    {
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1e400}
+        ]');
+
+        $this->assertSame(
+            '[{"jsonrpc":"2.0","result":7,"id":1},'
+            . '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}]',
+            $body,
+        );
+    }
+
+    public function testRejectsAnIdThatIsNotAStringANumberOrNull(): void
+    {
+        foreach (['{"a":1}', '[1,2]', 'true', '1e400'] as $id) {
+            $this->assertSame(
+                '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}',
+                $this->call(sprintf('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":%s}', $id)),
+            );
+        }
+    }
+
+    public function testCallsVariadicProcedures(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('collect', fn(int ...$numbers): array => $numbers);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":[1,2,3],"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"collect","params":[1,2,3],"id":1}'),
+        );
+    }
+
+    public function testCallsAVariadicProcedureWithNamedParameters(): void
+    {
+        $this->server->getProcedureHandler()->withCallback(
+            'tag',
+            fn(string $name, string ...$rest): array => [$name, $rest],
+        );
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":["x",[]],"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"tag","params":{"name":"x"},"id":1}'),
+        );
+    }
+
+    public function testCallsProceduresWhoseNameLooksLikeANumber(): void
+    {
+        $this->server->getProcedureHandler()->withCallbackArray(['123' => fn(): string => 'numeric']);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":"numeric","id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"123","id":1}'),
+        );
+    }
+
+    public function testReportsAParameterOfTheWrongTypeAsInvalidParams(): void
+    {
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":["a","b"],"id":1}'),
+        );
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"sum","params":[null,23],"id":1}'),
+        );
+    }
+
+    public function testABroadLocalExceptionDoesNotTakeAwayThe401Answer(): void
+    {
+        $this->server->authentication(['user' => 'pass'])->withLocalException(RuntimeException::class);
+
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'));
+
+        $this->assertSame(401, $response->statusCode);
+        $this->assertSame('Basic realm="JsonRPC"', $response->headers['WWW-Authenticate']);
+    }
+
+    public function testABroadLocalExceptionDoesNotTakeAwayThe403Answer(): void
+    {
+        $this->server->allowHosts(['192.168.0.1'])->withLocalException(RuntimeException::class);
+        $this->server->getMiddlewareHandler()->withMiddleware(new class implements MiddlewareInterface {
+            public function execute(?string $username, ?string $password, string $procedureName): void
+            {
+                throw new AccessDeniedException('Not for you');
+            }
         });
 
-        $response = json_decode($server->execute(), true);
+        $hostDenied = $this->server->execute(ServerRequest::fromString(
+            '{"jsonrpc":"2.0","method":"sum","id":1}',
+            ['REMOTE_ADDR' => '10.0.0.1'],
+        ));
+        $this->assertSame(403, $hostDenied->statusCode);
 
-        $this->assertSame(-32600, $response['error']['code']);
-        $this->assertSame('Invalid Request', $response['error']['message']);
+        $this->server->allowHosts([]);
+        $middlewareDenied = $this->server->execute(
+            ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'),
+        );
+        $this->assertSame(403, $middlewareDenied->statusCode);
     }
 
-    public function testBatchWithinLimitIsProcessed()
+    public function testAnExceptionThatIsNotRegisteredIsStillAnsweredToTheClient(): void
     {
-        $batch = '[' . implode(',', array_fill(0, 2, '{"jsonrpc":"2.0","method":"sum","params":[1,2,3],"id":1}')) . ']';
+        // A parse error is raised outside the request handler, so it reaches
+        // the same place a local exception would.
+        $this->server->withLocalException(DomainException::class);
 
-        $server = new Server($batch);
-        $server->withBatchLimit(2);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            return $a + $b + $c;
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}',
+            $this->call('{"jsonrpc": "2.0", "method": '),
+        );
+    }
+
+    public function testALocalExceptionRaisedWhileEncodingBubblesOut(): void
+    {
+        $this->server->withLocalException(RuntimeException::class);
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new RuntimeException('handled by the application');
+            }
         });
 
-        $response = json_decode($server->execute(), true);
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('handled by the application');
 
-        $this->assertCount(2, $response);
-        $this->assertSame(6, $response[0]['result']);
+        $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"entity","id":1}'));
     }
 
-    public function testExecuteRequestParserOverride()
+    public function testLetsALocalExceptionExtendingAccessDeniedBubbleOut(): void
     {
-        $requestParser = $this->getMockBuilder('JsonRPC\Request\RequestParser')
-            ->getMock();
+        $exception = new class ('tenant mismatch') extends AccessDeniedException {
+        };
 
-        $requestParser->method('withPayload')->willReturn($requestParser);
-        $requestParser->method('withProcedureHandler')->willReturn($requestParser);
-        $requestParser->method('withMiddlewareHandler')->willReturn($requestParser);
-        $requestParser->method('withLocalException')->willReturn($requestParser);
-        $requestParser->method('withInternalErrorMasking')->willReturn($requestParser);
-
-        $server = new Server($this->payload, [], null, $requestParser);
-
-        $requestParser->expects($this->once())
-            ->method('parse');
-
-        $server->execute();
-    }
-
-    public function testExecuteBatchRequestParserOverride()
-    {
-        $batchRequestParser = $this->getMockBuilder('JsonRPC\Request\BatchRequestParser')
-            ->getMock();
-
-        $batchRequestParser->method('withPayload')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withProcedureHandler')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withMiddlewareHandler')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withLocalException')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withBatchLimit')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withInternalErrorMasking')->willReturn($batchRequestParser);
-
-        $server = new Server('["...", "..."]', [], null, null, $batchRequestParser);
-
-        $batchRequestParser->expects($this->once())
-            ->method('parse');
-
-        $server->execute();
-    }
-
-    public function testExecuteResponseBuilderOverride()
-    {
-        $responseBuilder = $this->getMockBuilder('JsonRPC\Response\ResponseBuilder')
-            ->getMock();
-
-        $responseBuilder->expects($this->once())
-            ->method('sendHeaders');
-
-        $server = new Server($this->payload, [], $responseBuilder);
-        $server->execute();
-    }
-
-    public function testExecuteProcedureHandlerOverride()
-    {
-        $batchRequestParser = $this->getMockBuilder('JsonRPC\Request\BatchRequestParser')
-            ->getMock();
-
-        $procedureHandler = $this->getMockBuilder('JsonRPC\ProcedureHandler')
-            ->getMock();
-
-        $batchRequestParser->method('withPayload')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withProcedureHandler')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withMiddlewareHandler')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withLocalException')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withBatchLimit')->willReturn($batchRequestParser);
-        $batchRequestParser->method('withInternalErrorMasking')->willReturn($batchRequestParser);
-
-        $server = new Server('["...", "..."]', [], null, null, $batchRequestParser, $procedureHandler);
-
-        $batchRequestParser->expects($this->once())
-            ->method('parse');
-
-        $batchRequestParser->expects($this->once())
-            ->method('withProcedureHandler')
-            ->with($this->identicalTo($procedureHandler));
-
-        $server->execute();
-    }
-
-    public function testWhenCallbackRaiseForbiddenException()
-    {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new AccessDeniedException();
+        $this->server->withLocalException($exception::class);
+        $this->server->getProcedureHandler()->withCallback('boom', function () use ($exception): never {
+            throw $exception;
         });
 
-        self::$functions
-            ->expects(static::exactly(2))
-            ->method('header')
-            ->willReturnOnConsecutiveCalls('HTTP/1.0 403 Forbidden', 'Content-Type: application/json');
+        $this->expectExceptionObject($exception);
 
-        $this->assertEquals('{"jsonrpc":"2.0","error":{"code":403,"message":"Forbidden"},"id":null}', $server->execute());
+        $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"boom","id":1}'));
     }
 
-    public function testWhenCallbackRaiseUnauthorizedException()
+    public function testAnswers401WithoutTheExpectedCredentials(): void
     {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new AuthenticationFailureException();
-        });
+        $this->server->authentication(['user' => 'pass']);
 
-        self::$functions
-            ->expects(static::exactly(3))
-            ->method('header')
-            ->willReturnOnConsecutiveCalls('HTTP/1.0 401 Unauthorized', 'Content-Type: application/json', '');
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'));
 
-        $this->assertEquals('{"jsonrpc":"2.0","error":{"code":401,"message":"Unauthorized"},"id":null}', $server->execute());
+        $this->assertSame(401, $response->statusCode);
+        $this->assertSame('Basic realm="JsonRPC"', $response->headers['WWW-Authenticate']);
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":401,"message":"Unauthorized"},"id":null}', $response->body);
     }
 
-    public function testWhenMiddlewareRaiseUnauthorizedException()
+    public function testAnswersACallCarryingTheExpectedCredentials(): void
     {
-        $server = new Server($this->payload);
-        $server->getMiddlewareHandler()->withMiddleware(new DummyMiddleware());
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b) {
-            return $a + $b;
-        });
+        $this->server->authentication(['user' => 'pass']);
 
-        self::$functions
-            ->expects(static::exactly(3))
-            ->method('header')
-            ->willReturnOnConsecutiveCalls('HTTP/1.0 401 Unauthorized', 'Content-Type: application/json');
+        $body = $this->call(
+            '{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1}',
+            ['PHP_AUTH_USER' => 'user', 'PHP_AUTH_PW' => 'pass'],
+        );
 
-        $this->assertEquals('{"jsonrpc":"2.0","error":{"code":401,"message":"Unauthorized"},"id":null}', $server->execute());
+        $this->assertSame('{"jsonrpc":"2.0","result":7,"id":1}', $body);
     }
 
-    public function testFilterRelayExceptions()
+    public function testReadsCredentialsFromTheConfiguredHeader(): void
     {
-        $server = new Server($this->payload);
-        $server->withLocalException('MyException');
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new MyException('test');
-        });
+        $this->server->authentication(['user' => 'pass'])->withAuthenticationHeader('X-Auth');
 
-        $this->expectException('MyException');
-        $server->execute();
+        $body = $this->call(
+            '{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1}',
+            ['HTTP_X_AUTH' => base64_encode('user:pass')],
+        );
+
+        $this->assertSame('{"jsonrpc":"2.0","result":7,"id":1}', $body);
     }
 
-    public function testCustomExceptionAreRelayedToClient()
+    public function testAnEmptyAuthenticationHeaderNameKeepsTheStandardCredentials(): void
     {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new MyException('test');
-        });
+        $this->server->authentication(['user' => 'pass'])->withAuthenticationHeader('');
 
-        self::$functions
-            ->expects($this->once())
-            ->method('header')
-            ->with('Content-Type: application/json');
+        $body = $this->call(
+            '{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1}',
+            ['PHP_AUTH_USER' => 'user', 'PHP_AUTH_PW' => 'pass'],
+        );
 
-        $this->assertEquals('{"jsonrpc":"2.0","error":{"code":0,"message":"test"},"id":"1"}', $server->execute());
+        $this->assertSame('{"jsonrpc":"2.0","result":7,"id":1}', $body);
     }
 
-    public function testCustomResponseException()
+    public function testAnswers403ToAClientThatIsNotAllowed(): void
     {
-        $server = new Server($this->payload);
-        $server->getProcedureHandler()->withCallback('sum', function ($a, $b, $c) {
-            throw new ResponseException('test', 123, null, 'more info');
+        $this->server->allowHosts(['192.168.0.1']);
+
+        $response = $this->server->execute(ServerRequest::fromString(
+            '{"jsonrpc":"2.0","method":"sum","id":1}',
+            ['REMOTE_ADDR' => '10.0.0.1'],
+        ));
+
+        $this->assertSame(403, $response->statusCode);
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":403,"message":"Forbidden"},"id":null}', $response->body);
+    }
+
+    public function testAnswersAClientThatIsAllowed(): void
+    {
+        $this->server->allowHosts(['192.168.0.0/24']);
+
+        $body = $this->call(
+            '{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1}',
+            ['REMOTE_ADDR' => '192.168.0.42'],
+        );
+
+        $this->assertSame('{"jsonrpc":"2.0","result":7,"id":1}', $body);
+    }
+
+    public function testAnswers401WhenAMiddlewareRejectsTheCredentials(): void
+    {
+        $this->server->getMiddlewareHandler()->withMiddleware(new class implements MiddlewareInterface {
+            public function execute(?string $username, ?string $password, string $procedureName): void
+            {
+                throw new AccessDeniedException('Not for you');
+            }
         });
 
-        self::$functions
-            ->expects($this->once())
-            ->method('header')
-            ->with('Content-Type: application/json');
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'));
 
-        $this->assertEquals('{"jsonrpc":"2.0","error":{"code":123,"message":"test","data":"more info"},"id":"1"}', $server->execute());
+        $this->assertSame(403, $response->statusCode);
+    }
+
+    public function testLetsRegisteredLocalExceptionsBubbleOutOfExecute(): void
+    {
+        $this->server->withLocalException(RuntimeException::class);
+        $this->server->getProcedureHandler()->withCallback('boom', function (): never {
+            throw new RuntimeException('handled by the application');
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('handled by the application');
+
+        $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"boom","id":1}'));
+    }
+
+    public function testExposesProceduresBoundToAnObject(): void
+    {
+        $this->server->getProcedureHandler()->withObject(new Procedures(), ['greet']);
+
+        $body = $this->call('{"jsonrpc":"2.0","method":"greet","params":{"name":"Bob"},"id":1}');
+
+        $this->assertSame('{"jsonrpc":"2.0","result":"Hello Bob","id":1}', $body);
+    }
+
+    public function testAcceptsPreBuiltCollaborators(): void
+    {
+        $server = new Server(new ProcedureHandler(), new MiddlewareHandler());
+        $server->getProcedureHandler()->withCallback('ping', fn(): string => 'pong');
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":"pong","id":1}',
+            $server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"ping","id":1}'))->body,
+        );
+    }
+
+    public function testReadsTheCurrentRequestWhenNoneIsGiven(): void
+    {
+        $response = $this->server->execute();
+
+        $this->assertSame('{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}', $response->body);
     }
 }

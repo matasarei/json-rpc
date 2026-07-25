@@ -1,194 +1,180 @@
 <?php
 
+declare(strict_types=1);
+
+namespace JsonRPC\Tests;
+
+use InvalidArgumentException;
+use JsonRPC\Exception\InvalidParamsException;
+use JsonRPC\Exception\MethodNotFoundException;
 use JsonRPC\ProcedureHandler;
+use JsonRPC\Tests\Doubles\Procedures;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
-class A
+#[CoversClass(ProcedureHandler::class)]
+final class ProcedureHandlerTest extends TestCase
 {
-    public function getAll($p1, $p2, $p3 = 4)
-    {
-        return $p1 + $p2 + $p3;
-    }
-}
+    private ProcedureHandler $handler;
 
-class B
-{
-    public function getAll($p1)
+    protected function setUp(): void
     {
-        return $p1 + 2;
-    }
-}
-
-class ClassWithBeforeMethod
-{
-    private $foobar = '';
-
-    public function before($procedure)
-    {
-        $this->foobar = $procedure;
+        $this->handler = new ProcedureHandler();
     }
 
-    public function myProcedure()
+    public function testExecutesARegisteredCallback(): void
     {
-        return $this->foobar;
-    }
-}
+        $this->handler->withCallback('sum', fn(int $a, int $b): int => $a + $b);
 
-class ClassWithMagicMethods
-{
-    public $constructed = false;
-
-    public function __construct()
-    {
-        $this->constructed = true;
+        $this->assertSame(7, $this->handler->executeProcedure('sum', [3, 4]));
+        $this->assertSame(7, $this->handler->executeProcedure('sum', ['b' => 4, 'a' => 3]));
     }
 
-    public function legit()
+    public function testExecutesSeveralCallbacksRegisteredAtOnce(): void
     {
-        return 'ok';
-    }
-}
+        $this->handler->withCallbackArray([
+            'sum' => fn(int $a, int $b): int => $a + $b,
+            'ping' => fn(): string => 'pong',
+        ]);
 
-class ProcedureHandlerTest extends TestCase
-{
-    public function testProcedureNotFound()
-    {
-        $this->expectException('BadFunctionCallException');
-        $handler = new ProcedureHandler();
-        $handler->executeProcedure('a');
+        $this->assertSame(7, $this->handler->executeProcedure('sum', [3, 4]));
+        $this->assertSame('pong', $this->handler->executeProcedure('ping'));
     }
 
-    public function testMagicMethodOnInstanceIsNotCallable()
+    public function testExecutesAMethodOfAClassItInstantiates(): void
     {
-        $this->expectException('BadFunctionCallException');
-        $handler = new ProcedureHandler();
-        $handler->withObject(new ClassWithMagicMethods());
-        $handler->executeProcedure('__construct');
+        $this->handler->withClassAndMethod('sum', Procedures::class);
+
+        $this->assertSame(7, $this->handler->executeProcedure('sum', [3, 4]));
     }
 
-    public function testRegularMethodOnInstanceStillCallable()
+    public function testExecutesAMethodUnderADifferentProcedureName(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withObject(new ClassWithMagicMethods());
-        $this->assertSame('ok', $handler->executeProcedure('legit'));
+        $this->handler->withClassAndMethod('addition', Procedures::class, 'sum');
+
+        $this->assertSame(7, $this->handler->executeProcedure('addition', [3, 4]));
     }
 
-    public function testCallbackNotFound()
+    public function testExecutesAMethodOfAGivenInstance(): void
     {
-        $this->expectException('BadFunctionCallException');
-        $handler = new ProcedureHandler();
-        $handler->withCallback('b', function () {
-        });
-        $handler->executeProcedure('a');
+        $this->handler->withClassAndMethod('marker', new Procedures('built by hand'));
+
+        $this->assertSame('built by hand', $this->handler->executeProcedure('marker'));
     }
 
-    public function testClassNotFound()
+    public function testExecutesSeveralClassMethodsRegisteredAtOnce(): void
     {
-        $this->expectException('BadFunctionCallException');
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllTasks', 'c', 'getAll');
-        $handler->executeProcedure('getAllTasks');
+        $this->handler->withClassAndMethodArray([
+            'addition' => [Procedures::class, 'sum'],
+            'greeting' => [new Procedures(), 'greet'],
+            // Without a method, the procedure name is the method name.
+            'sum' => [Procedures::class],
+        ]);
+
+        $this->assertSame(7, $this->handler->executeProcedure('addition', [3, 4]));
+        $this->assertSame('Hello Bob', $this->handler->executeProcedure('greeting', ['name' => 'Bob']));
+        $this->assertSame(3, $this->handler->executeProcedure('sum', [1, 2]));
     }
 
-    public function testMethodNotFound()
+    public function testRegistersProceduresWhoseNameLooksLikeANumber(): void
     {
-        $this->expectException('BadFunctionCallException');
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllTasks', 'A', 'getNothing');
-        $handler->executeProcedure('getAllTasks');
+        $this->handler
+            ->withCallbackArray(['123' => fn(): string => 'callback'])
+            ->withClassAndMethodArray(['456' => [Procedures::class, 'sum']]);
+
+        $this->assertSame('callback', $this->handler->executeProcedure('123'));
+        $this->assertSame(7, $this->handler->executeProcedure('456', [3, 4]));
     }
 
-    public function testIsPositionalArguments()
+    public function testBuildsInstancesThroughTheConfiguredFactory(): void
     {
-        $handler = new ProcedureHandler();
-        $this->assertFalse($handler->isPositionalArguments(
-            ['a' => 'b', 'c' => 'd']
-        ));
+        $this->handler
+            ->withInstanceFactory(fn(string $class): object => new Procedures('built by the container'))
+            ->withClassAndMethod('marker', Procedures::class);
 
-        $handler = new ProcedureHandler();
-        $this->assertTrue($handler->isPositionalArguments(
-            ['a', 'b', 'c']
-        ));
+        $this->assertSame('built by the container', $this->handler->executeProcedure('marker'));
     }
 
-    public function testBindNamedArguments()
+    public function testExposesTheListedMethodsOfAnObject(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllA', 'A', 'getAll');
-        $handler->withClassAndMethod('getAllB', 'B', 'getAll');
-        $handler->withClassAndMethod('getAllC', new B(), 'getAll');
-        $this->assertEquals(6, $handler->executeProcedure('getAllA', ['p2' => 4, 'p1' => -2]));
-        $this->assertEquals(10, $handler->executeProcedure('getAllA', ['p2' => 4, 'p3' => 8, 'p1' => -2]));
-        $this->assertEquals(6, $handler->executeProcedure('getAllB', ['p1' => 4]));
-        $this->assertEquals(5, $handler->executeProcedure('getAllC', ['p1' => 3]));
+        $this->handler->withObject(new Procedures(), ['sum', 'greet']);
+
+        $this->assertSame(7, $this->handler->executeProcedure('sum', [3, 4]));
+        $this->assertSame('Hi Bob', $this->handler->executeProcedure('greet', ['name' => 'Bob', 'greeting' => 'Hi']));
     }
 
-    public function testBindPositionalArguments()
+    public function testDoesNotExposeMethodsThatWereNotListed(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllA', 'A', 'getAll');
-        $handler->withClassAndMethod('getAllB', 'B', 'getAll');
-        $this->assertEquals(6, $handler->executeProcedure('getAllA', [4, -2]));
-        $this->assertEquals(2, $handler->executeProcedure('getAllA', [4, 0, -2]));
-        $this->assertEquals(4, $handler->executeProcedure('getAllB', [2]));
+        $this->handler->withObject(new Procedures(), ['sum']);
+
+        $this->expectException(MethodNotFoundException::class);
+
+        $this->handler->executeProcedure('secret');
     }
 
-    public function testRegisterNamedArguments()
+    public function testRefusesToExposeMagicMethods(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withCallback('getAllA', function ($p1, $p2, $p3 = 4) {
-            return $p1 + $p2 + $p3;
-        });
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Magic method "__call" cannot be exposed as a procedure');
 
-        $this->assertEquals(6, $handler->executeProcedure('getAllA', ['p2' => 4, 'p1' => -2]));
-        $this->assertEquals(10, $handler->executeProcedure('getAllA', ['p2' => 4, 'p3' => 8, 'p1' => -2]));
+        $this->handler->withObject(new Procedures(), ['__call']);
     }
 
-    public function testRegisterPositionalArguments()
+    public function testRefusesToExposeAMethodThatDoesNotExist(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withCallback('getAllA', function ($p1, $p2, $p3 = 4) {
-            return $p1 + $p2 + $p3;
-        });
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Method "missing" does not exist');
 
-        $this->assertEquals(6, $handler->executeProcedure('getAllA', [4, -2]));
-        $this->assertEquals(2, $handler->executeProcedure('getAllA', [4, 0, -2]));
+        $this->handler->withObject(new Procedures(), ['missing']);
     }
 
-    public function testTooManyArguments()
+    public function testCallsTheBeforeMethodWithTheNameOfTheMethodAboutToRun(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $procedures = new Procedures();
+        $this->handler
+            ->withBeforeMethod('beforeProcedure')
+            ->withObject($procedures, ['sum'])
+            // The procedure is named differently from the method it runs.
+            ->withClassAndMethod('addition', $procedures, 'greet');
 
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllC', new B(), 'getAll');
-        $handler->executeProcedure('getAllC', ['p1' => 3, 'p2' => 5]);
+        $this->handler->executeProcedure('sum', [3, 4]);
+        $this->handler->executeProcedure('addition', ['name' => 'Bob']);
+
+        $this->assertSame(['sum', 'greet'], $procedures->before);
     }
 
-    public function testNotEnoughArguments()
+    public function testIgnoresTheBeforeMethodWhenTheObjectDoesNotHaveIt(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $this->handler
+            ->withBeforeMethod('missingBeforeMethod')
+            ->withObject(new Procedures(), ['sum']);
 
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllC', new B(), 'getAll');
-        $handler->executeProcedure('getAllC');
+        $this->assertSame(7, $this->handler->executeProcedure('sum', [3, 4]));
     }
 
-    public function testUndefinedArguments()
+    public function testFailsWhenTheProcedureIsUnknown(): void
     {
-        $this->expectException('InvalidArgumentException');
+        $this->expectException(MethodNotFoundException::class);
+        $this->expectExceptionMessage('Unable to find the procedure');
 
-        $handler = new ProcedureHandler();
-        $handler->withClassAndMethod('getAllA', new A(), 'getAll');
-        $handler->executeProcedure('getAllA', ['p1' => 3, 'p2' => 5, 'p333' => 7]);
+        $this->handler->executeProcedure('missing');
     }
 
-    public function testBeforeMethod()
+    public function testFailsWhenTheBoundMethodDoesNotExist(): void
     {
-        $handler = new ProcedureHandler();
-        $handler->withObject(new ClassWithBeforeMethod());
-        $handler->withBeforeMethod('before');
-        $this->assertEquals('myProcedure', $handler->executeProcedure('myProcedure'));
+        $this->handler->withClassAndMethod('broken', Procedures::class, 'missing');
+
+        $this->expectException(MethodNotFoundException::class);
+
+        $this->handler->executeProcedure('broken');
+    }
+
+    public function testFailsWhenTheParametersDoNotMatchTheProcedure(): void
+    {
+        $this->handler->withCallback('sum', fn(int $a, int $b): int => $a + $b);
+
+        $this->expectException(InvalidParamsException::class);
+
+        $this->handler->executeProcedure('sum', [3]);
     }
 }

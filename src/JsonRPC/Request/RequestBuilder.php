@@ -1,144 +1,91 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Request;
 
+use JsonException;
+use JsonRPC\Exception\RpcCallFailedException;
+
 /**
- * Class RequestBuilder
+ * Assembles request payloads.
  *
- * @package JsonRPC\Request
- * @author  Frederic Guillot
+ * Payloads are returned as arrays: a single request is encoded by the client,
+ * a batch is encoded once as a whole.
  */
-class RequestBuilder
+final readonly class RequestBuilder
 {
-    /**
-     * Request ID
-     *
-     * @var mixed
-     */
-    private $id = null;
-
-    /**
-     * Method name
-     *
-     * @var string
-     */
-    private $procedure = '';
-
-    /**
-     * Method arguments
-     *
-     * @var array
-     */
-    private $params = [];
-
-    /**
-     * Additional request attributes
-     *
-     * @var array
-     */
-    private $reqattrs = [];
-
-    /**
-     * Build the request as a notification (no id member)
-     *
-     * @var bool
-     */
-    private $isNotification = false;
-
-    /**
-     * Get new object instance
-     *
-     * @return RequestBuilder
-     */
-    public static function create()
+    public function __construct(private IdGeneratorInterface $idGenerator = new RandomIdGenerator())
     {
-        return new static();
     }
 
     /**
-     * Set id
+     * Encode a payload, reporting what cannot be encoded as a library exception
+     * rather than a bare JsonException.
      *
-     * @param  null $id
+     * @param array<array-key, mixed> $payload
      *
-     * @return RequestBuilder
+     * @throws RpcCallFailedException
      */
-    public function withId($id)
+    public static function encode(array $payload): string
     {
-        $this->id = $id;
-        return $this;
+        try {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RpcCallFailedException(
+                'The request cannot be encoded: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
     }
 
     /**
-     * Set method
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes Extra members added to the payload
+     * @param int|string|null $id Identifier of the request, generated when null
      *
-     * @param  string $procedure
-     *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withProcedure($procedure)
+    public function build(string $procedure, array $params = [], array $attributes = [], int|string|null $id = null): array
     {
-        $this->procedure = $procedure;
-        return $this;
+        return $this->payload($procedure, $params, $attributes, $id ?? $this->idGenerator->generate());
     }
 
     /**
-     * Set parameters
+     * Build a notification: without an id member, the server must not answer.
      *
-     * @param  array $params
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes
      *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withParams(array $params)
+    public function buildNotification(string $procedure, array $params = [], array $attributes = []): array
     {
-        $this->params = $params;
-        return $this;
+        return $this->payload($procedure, $params, $attributes, null);
     }
 
     /**
-     * Set additional request attributes
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes
      *
-     * @param  array $reqattrs
-     *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withRequestAttributes(array $reqattrs)
+    private function payload(string $procedure, array $params, array $attributes, int|string|null $id): array
     {
-        $this->reqattrs = $reqattrs;
-        return $this;
-    }
-
-    /**
-     * Build the request as a notification: the id member is omitted
-     * and the server will not send a response
-     *
-     * @return RequestBuilder
-     */
-    public function asNotification()
-    {
-        $this->isNotification = true;
-        return $this;
-    }
-
-    /**
-     * Build the payload
-     *
-     * @return string
-     */
-    public function build()
-    {
-        $payload = array_merge_recursive($this->reqattrs, [
+        $payload = array_merge($attributes, [
             'jsonrpc' => '2.0',
-            'method' => $this->procedure,
+            'method' => $procedure,
         ]);
 
-        if (! $this->isNotification) {
-            $payload['id'] = $this->id ?? mt_rand();
+        if ($id !== null) {
+            $payload['id'] = $id;
         }
 
-        if (! empty($this->params)) {
-            $payload['params'] = $this->params;
+        if ($params !== []) {
+            $payload['params'] = $params;
         }
 
-        return json_encode($payload);
+        return $payload;
     }
 }

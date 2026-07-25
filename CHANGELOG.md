@@ -1,5 +1,66 @@
 # Changelog
 
+## v2.0.0 (unreleased)
+
+A rewrite that keeps the shape of the API. See [UPGRADE-2.0.md](UPGRADE-2.0.md) for the
+complete v1 to v2 mapping.
+
+### Added
+- **Pluggable transports**: HTTP I/O sits behind `TransportInterface`. `CurlTransport` and
+  `StreamTransport` keep the library dependency free, and `Psr18Transport` sends requests
+  through any PSR-18 client such as symfony/http-client or Guzzle (closes #21).
+  Authentication, cookies, logging and the reading of status codes behave the same on all
+  of them; redirect and compression handling stay the business of an injected client.
+- **Framework friendly server**: `Server::execute(?ServerRequest)` returns a
+  `ServerResponse` with a body, a status code and headers. `ServerRequest::fromGlobals()`
+  keeps the one-line script usage; `ServerRequest::fromString()` is what a controller
+  passes in.
+- `BatchBuilder`: batches are collected by a single-use builder and their answers are
+  correlated by request id. A partially failed batch throws `BatchFailedException`, which
+  carries the results that succeeded and the errors keyed by call position.
+- `HttpClient::withCaFile()`, `withLocalCert()` and `withTransportOptions()`.
+- `ProcedureHandler::withInstanceFactory()` to build procedure classes through a container.
+- `JsonRpcException` marker interface, `MethodNotFoundException`, `InvalidParamsException`,
+  and the `ErrorCode` enum for the codes of the specification.
+- IPv6 and IPv6 CIDR support in `HostValidator`.
+
+### Security
+- Secure by default: internal error masking is on, batches are limited to 100 calls,
+  `withObject()` requires an explicit method allowlist, and the server catches `Throwable`
+  so an `Error` raised by a procedure cannot end the response.
+- Header names and values containing a line break or a null byte are refused, so a value
+  an application puts in a header or a cookie cannot inject headers into the request.
+- The cookie jar forgets a cookie the server deletes, instead of sending a stale session
+  for ever.
+- `Set-Cookie` values are redacted from the logs, next to `Authorization`, `Cookie` and
+  `Proxy-Authorization`.
+
+### Changed
+- Requires PHP 8.4, `psr/log` ^3.0, and declares `strict_types=1` everywhere. Parameters
+  are no longer coerced, so a client sending `["5", "3"]` to `function (int $a, int $b)`
+  now gets `-32602 Invalid params`.
+- A request made only of notifications is answered with HTTP 204 and an empty body; a
+  request carrying `"id": null` is answered instead of being taken for a notification.
+- Answers are validated before they are returned: one carrying another request's id, or
+  JSON that is neither a result nor an error, is refused instead of surfacing as `null`.
+- An error object is relayed rather than replaced by the status code carrying it, 500
+  included; `ServerErrorException` is left for a 500 that carries something else. The
+  exceptions are 3xx, 401, 403 and 404, which are reported as they are.
+- The stream transport reports a body shorter than its `Content-Length` instead of
+  handing over a truncated answer, and the cURL transport no longer lets libcurl add
+  `Expect: 100-continue`, which cost a second per request above a megabyte.
+- Status codes and headers are returned as part of the response instead of being emitted
+  with `header()` while the server runs.
+- Request ids come from an injectable generator backed by `random_int()`.
+- Test suite rewritten: no global function shadowing, PHPStan at max level without a
+  baseline, and 100% line coverage enforced in CI.
+
+### Removed
+- `RequestParser`, `BatchRequestParser`, `ResponseBuilder`, the three format validators,
+  `ErrorLogLogger`, every `static create()` factory, the deprecated `Server::register()`,
+  `bind()` and `attach()`, the client `$returnException` mode, `HttpClient::withDebug()`,
+  `addOption()`, `setOptions()` and `withSslLocalCert()`.
+
 ## v1.5.0 (2026-07-24)
 
 ### Added

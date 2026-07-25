@@ -1,227 +1,98 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
-use Closure;
-use Exception;
-use JsonRPC\Request\BatchRequestParser;
-use JsonRPC\Request\RequestParser;
-use JsonRPC\Response\ResponseBuilder;
+use JsonException;
+use JsonRPC\Exception\AccessDeniedException;
+use JsonRPC\Exception\AuthenticationFailureException;
+use JsonRPC\Exception\InvalidJsonFormatException;
+use JsonRPC\Exception\InvalidJsonRpcFormatException;
+use JsonRPC\Exception\ResponseEncodingFailureException;
+use JsonRPC\Server\ErrorResponseFactory;
+use JsonRPC\Server\RequestHandler;
+use JsonRPC\Server\ServerRequest;
+use JsonRPC\Server\ServerResponse;
 use JsonRPC\Validator\HostValidator;
-use JsonRPC\Validator\JsonFormatValidator;
 use JsonRPC\Validator\UserValidator;
+use Throwable;
 
 /**
- * JsonRPC server class
+ * Answers JSON-RPC 2.0 requests.
  *
- * @package JsonRPC
- * @author  Frederic Guillot
+ *     $server = new Server();
+ *     $server->getProcedureHandler()->withCallback('sum', fn(int $a, int $b) => $a + $b);
+ *     $server->execute()->send();
+ *
+ * execute() returns the response instead of writing it out, so the server can
+ * also be used inside a framework controller.
  */
-class Server
+final class Server
 {
-    /**
-     * Allowed hosts
-     *
-     * @var array
-     */
-    protected $hosts = [];
+    private const ENCODING_OPTIONS = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
 
     /**
-     * Data received from the client
-     *
-     * @var array
+     * @var list<string>
      */
-    protected $payload = [];
+    private array $hosts = [];
 
     /**
-     * List of exceptions that should not be relayed to the client
-     *
-     * @var array
+     * @var array<string, string>
      */
-    protected $localExceptions = [];
+    private array $users = [];
 
     /**
-     * Maximum number of requests allowed in a batch (0 = unlimited)
+     * Exceptions the application handles itself, registered with withLocalException().
      *
-     * @var int
+     * @var list<class-string>
      */
-    protected $batchLimit = 0;
+    private array $localExceptions = [];
 
-    /**
-     * Mask unrecognized exceptions as a generic internal error
-     *
-     * @var bool
-     */
-    protected $maskInternalErrors = false;
+    private int $batchLimit = 100;
 
-    /**
-     * Username
-     *
-     * @var string
-     */
-    protected $username = '';
+    private bool $maskInternalErrors = true;
 
-    /**
-     * Password
-     *
-     * @var string
-     */
-    protected $password = '';
+    private ?string $authenticationHeader = null;
 
-    /**
-     * Allowed users
-     *
-     * @var array
-     */
-    protected $users = [];
-
-    /**
-     * $_SERVER
-     *
-     * @var array
-     */
-    protected $serverVariable;
-
-    /**
-     * ProcedureHandler object
-     *
-     * @var ProcedureHandler
-     */
-    protected $procedureHandler;
-
-    /**
-     * MiddlewareHandler object
-     *
-     * @var MiddlewareHandler
-     */
-    protected $middlewareHandler;
-
-    /**
-     * Response builder
-     *
-     * @var ResponseBuilder
-     */
-    protected $responseBuilder;
-
-    /**
-     * Response builder
-     *
-     * @var RequestParser
-     */
-    protected $requestParser;
-
-    /**
-     * Batch request parser
-     *
-     * @var BatchRequestParser
-     */
-    protected $batchRequestParser;
-
-    /**
-     * @param string $request
-     * @param array $server
-     * @param ResponseBuilder|null $responseBuilder
-     * @param RequestParser|null $requestParser
-     * @param BatchRequestParser|null $batchRequestParser
-     * @param ProcedureHandler|null $procedureHandler
-     * @param MiddlewareHandler|null $middlewareHandler
-     */
     public function __construct(
-        $request = '',
-        array $server = [],
-        ?ResponseBuilder $responseBuilder = null,
-        ?RequestParser $requestParser = null,
-        ?BatchRequestParser $batchRequestParser = null,
-        ?ProcedureHandler $procedureHandler = null,
-        ?MiddlewareHandler $middlewareHandler = null
+        private readonly ProcedureHandler $procedureHandler = new ProcedureHandler(),
+        private readonly MiddlewareHandler $middlewareHandler = new MiddlewareHandler(),
+        private readonly HostValidator $hostValidator = new HostValidator(),
+        private readonly UserValidator $userValidator = new UserValidator(),
     ) {
-        if ($request !== '') {
-            $this->payload = json_decode($request, true);
-        } else {
-            $this->payload = json_decode(file_get_contents('php://input'), true);
-        }
-
-        $this->serverVariable = $server ?: $_SERVER;
-        $this->responseBuilder = $responseBuilder ?: ResponseBuilder::create();
-        $this->requestParser = $requestParser ?: RequestParser::create();
-        $this->batchRequestParser = $batchRequestParser ?: BatchRequestParser::create();
-        $this->procedureHandler = $procedureHandler ?: new ProcedureHandler();
-        $this->middlewareHandler = $middlewareHandler ?: new MiddlewareHandler();
     }
 
-    /**
-     * Define alternative authentication header
-     *
-     * @param  string   $header   Header name
-     *
-     * @return $this
-     */
-    public function setAuthenticationHeader($header)
-    {
-        if (! empty($header)) {
-            $header = 'HTTP_' . str_replace('-', '_', strtoupper($header));
-            $value = $this->getServerVariable($header);
-
-            if (! empty($value)) {
-                $credentials = base64_decode($value, true);
-
-                if ($credentials !== false && strpos($credentials, ':') !== false) {
-                    [$this->username, $this->password] = explode(':', $credentials, 2);
-                }
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * Get ProcedureHandler
-     *
-     * @return ProcedureHandler
-     */
-    public function getProcedureHandler()
+    public function getProcedureHandler(): ProcedureHandler
     {
         return $this->procedureHandler;
     }
 
-    /**
-     * Get MiddlewareHandler
-     *
-     * @return MiddlewareHandler
-     */
-    public function getMiddlewareHandler()
+    public function getMiddlewareHandler(): MiddlewareHandler
     {
         return $this->middlewareHandler;
     }
 
     /**
-     * Get username
+     * Read the credentials from another header than the standard one, for
+     * setups where the web server does not forward Authorization.
      *
-     * @return string
+     * The value is read like an Authorization header: "Basic <base64>", or the
+     * base64 on its own, so a forwarded header works as it arrives.
      */
-    public function getUsername()
+    public function withAuthenticationHeader(string $header): self
     {
-        return $this->username !== '' ? $this->username : $this->getServerVariable('PHP_AUTH_USER');
+        $this->authenticationHeader = $header === '' ? null : $header;
+
+        return $this;
     }
 
     /**
-     * Get password
+     * Only answer clients from these addresses or CIDR ranges.
      *
-     * @return string
+     * @param list<string> $hosts
      */
-    public function getPassword()
-    {
-        return $this->password !== '' ? $this->password : $this->getServerVariable('PHP_AUTH_PW');
-    }
-
-    /**
-     * IP based client restrictions
-     *
-     * @param  array   $hosts   List of hosts
-     *
-     * @return $this
-     */
-    public function allowHosts(array $hosts)
+    public function allowHosts(array $hosts): self
     {
         $this->hosts = $hosts;
 
@@ -229,13 +100,11 @@ class Server
     }
 
     /**
-     * HTTP Basic authentication
+     * Only answer requests carrying one of these credentials.
      *
-     * @param  array   $users   Dictionary of username/password
-     *
-     * @return $this
+     * @param array<string, string> $users Passwords keyed by username
      */
-    public function authentication(array $users)
+    public function authentication(array $users): self
     {
         $this->users = $users;
 
@@ -243,64 +112,15 @@ class Server
     }
 
     /**
-     * Register a new procedure
+     * Do not relay this exception to the client: let it bubble out of execute().
      *
-     * @deprecated Use $server->getProcedureHandler()->withCallback($procedure, $callback)
+     * The 401 and 403 answers stay the server's job unless what is registered is
+     * more specific than AuthenticationFailureException or AccessDeniedException,
+     * so registering one of their ancestors does not take those answers away.
      *
-     * @param  string   $procedure       Procedure name
-     * @param  closure  $callback        Callback
-     *
-     * @return $this
+     * @param class-string $exception
      */
-    public function register($procedure, Closure $callback)
-    {
-        $this->procedureHandler->withCallback($procedure, $callback);
-
-        return $this;
-    }
-
-    /**
-     * Bind a procedure to a class
-     *
-     * @deprecated Use $server->getProcedureHandler()->withClassAndMethod($procedure, $class, $method);
-     *
-     * @param  string   $procedure    Procedure name
-     * @param  mixed    $class        Class name or instance
-     * @param  string   $method       Procedure name
-     *
-     * @return $this
-     */
-    public function bind($procedure, $class, $method = '')
-    {
-        $this->procedureHandler->withClassAndMethod($procedure, $class, $method);
-
-        return $this;
-    }
-
-    /**
-     * Bind a class instance
-     *
-     * @deprecated Use $server->getProcedureHandler()->withObject($instance);
-     *
-     * @param  mixed   $instance    Instance name
-     *
-     * @return $this
-     */
-    public function attach($instance)
-    {
-        $this->procedureHandler->withObject($instance);
-
-        return $this;
-    }
-
-    /**
-     * Exception classes that should not be relayed to the client
-     *
-     * @param  Exception|string $exception
-     *
-     * @return $this
-     */
-    public function withLocalException($exception)
+    public function withLocalException(string $exception): self
     {
         $this->localExceptions[] = $exception;
 
@@ -308,16 +128,9 @@ class Server
     }
 
     /**
-     * Limit the number of requests accepted in a single batch.
-     *
-     * Batches larger than the limit are rejected with an "Invalid Request"
-     * (-32600) error. Helps mitigate denial-of-service from very large batches.
-     *
-     * @param  int $limit 0 disables the limit (default)
-     *
-     * @return $this
+     * Reject batches larger than this, 0 for no limit.
      */
-    public function withBatchLimit($limit)
+    public function withBatchLimit(int $limit): self
     {
         $this->batchLimit = $limit;
 
@@ -325,20 +138,10 @@ class Server
     }
 
     /**
-     * Hide the message and code of unrecognized exceptions from the client.
-     *
-     * When enabled, any exception thrown by a procedure that is not a JSON-RPC
-     * exception (and is not registered as a local exception) is returned as a
-     * generic "Internal error" (-32603) instead of leaking its message, which
-     * may contain internal details (SQL, file paths, stack context).
-     *
-     * Recommended for production. Disabled by default for backward compatibility.
-     *
-     * @param  bool $enabled
-     *
-     * @return $this
+     * Answer a generic internal error instead of relaying the message and code
+     * of exceptions the library does not recognize. On by default.
      */
-    public function withInternalErrorMasking($enabled = true)
+    public function withInternalErrorMasking(bool $enabled = true): self
     {
         $this->maskInternalErrors = $enabled;
 
@@ -346,95 +149,231 @@ class Server
     }
 
     /**
-     * Parse incoming requests
+     * @param ServerRequest|null $request Defaults to the current HTTP request
      *
-     * @return string
-     *
-     * @throws Exception
+     * @throws Throwable Exceptions registered with withLocalException()
      */
-    public function execute()
+    public function execute(?ServerRequest $request = null): ServerResponse
     {
+        $request ??= ServerRequest::fromGlobals();
+        [$username, $password] = $request->credentials($this->authenticationHeader);
+        $errorResponseFactory = new ErrorResponseFactory($this->maskInternalErrors);
+
         try {
-            JsonFormatValidator::validate($this->payload);
-            HostValidator::validate($this->hosts, $this->getServerVariable('REMOTE_ADDR'));
-            UserValidator::validate($this->users, $this->getUsername(), $this->getPassword());
+            $this->hostValidator->validate($this->hosts, $request->remoteAddress());
+            $this->userValidator->validate($this->users, $username, $password);
 
-            $this->middlewareHandler
-                ->withUsername($this->getUsername())
-                ->withPassword($this->getPassword())
-            ;
+            $payload = $this->dispatch($this->decode($request->body), $username, $password, $errorResponseFactory);
 
-            $response = $this->parseRequest();
-        } catch (Exception $e) {
-            $response = $this->handleExceptions($e);
+            // Encoding happens inside the try: a result can still fail to encode,
+            // for instance when a JsonSerializable of the application throws.
+            return $this->respond($payload, $errorResponseFactory);
+        } catch (Throwable $exception) {
+            if ($this->isHandledByApplication($exception)) {
+                throw $exception;
+            }
+
+            if ($exception instanceof AuthenticationFailureException) {
+                return $this->unauthorized();
+            }
+
+            if ($exception instanceof AccessDeniedException) {
+                return $this->forbidden();
+            }
+
+            return new ServerResponse($this->encodeSafely([
+                'jsonrpc' => '2.0',
+                'error' => $errorResponseFactory->create($exception),
+                'id' => null,
+            ]));
         }
-
-        $this->responseBuilder->sendHeaders();
-
-        return $response;
     }
 
     /**
-     * Handle exceptions
+     * @return array<array-key, mixed>|null The payload to answer, null when there is nothing to say
      *
-     * @param  Exception $e
-     *
-     * @return string
-     *
-     * @throws Exception
+     * @throws Throwable
      */
-    protected function handleExceptions(Exception $e)
-    {
-        foreach ($this->localExceptions as $exception) {
-            if ($e instanceof $exception) {
-                throw $e;
+    private function dispatch(
+        mixed $payload,
+        ?string $username,
+        ?string $password,
+        ErrorResponseFactory $errorResponseFactory,
+    ): ?array {
+        $handler = new RequestHandler(
+            $this->procedureHandler,
+            $this->middlewareHandler,
+            $errorResponseFactory,
+            // Authentication and access failures are answered by execute() with
+            // a status code, so they have to leave the handler untouched.
+            [
+                ...$this->localExceptions,
+                AuthenticationFailureException::class,
+                AccessDeniedException::class,
+            ],
+        );
+
+        if (!is_array($payload) || !array_is_list($payload) || $payload === []) {
+            return $handler->handle($payload, $username, $password);
+        }
+
+        if ($this->batchLimit > 0 && count($payload) > $this->batchLimit) {
+            throw new InvalidJsonRpcFormatException('Batch size limit exceeded');
+        }
+
+        $responses = [];
+
+        foreach ($payload as $request) {
+            $response = $handler->handle($request, $username, $password);
+
+            if ($response !== null) {
+                $responses[] = $response;
             }
         }
 
-        return $this->responseBuilder
-            ->withInternalErrorMasking($this->maskInternalErrors)
-            ->withException($e)
-            ->build();
+        return $responses === [] ? null : $responses;
     }
 
     /**
-     * Parse incoming request
-     *
-     * @return string
-     *
-     * @throws Exception
+     * @throws InvalidJsonFormatException
      */
-    protected function parseRequest()
+    private function decode(string $body): mixed
     {
-        if (BatchRequestParser::isBatchRequest($this->payload)) {
-            return $this->batchRequestParser
-                ->withPayload($this->payload)
-                ->withProcedureHandler($this->procedureHandler)
-                ->withMiddlewareHandler($this->middlewareHandler)
-                ->withLocalException($this->localExceptions)
-                ->withBatchLimit($this->batchLimit)
-                ->withInternalErrorMasking($this->maskInternalErrors)
-                ->parse();
+        try {
+            return json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new InvalidJsonFormatException('Malformed payload', 0, $exception);
+        }
+    }
+
+    /**
+     * @param array<array-key, mixed>|null $payload
+     */
+    private function respond(?array $payload, ErrorResponseFactory $errorResponseFactory): ServerResponse
+    {
+        // Every request was a notification: there is nothing to answer.
+        if ($payload === null) {
+            return new ServerResponse('', 204, []);
         }
 
-        return $this->requestParser
-            ->withPayload($this->payload)
-            ->withProcedureHandler($this->procedureHandler)
-            ->withMiddlewareHandler($this->middlewareHandler)
-            ->withLocalException($this->localExceptions)
-            ->withInternalErrorMasking($this->maskInternalErrors)
-            ->parse();
+        // Responses of a batch are encoded one by one, so that a single result
+        // that cannot be encoded does not take the whole batch down with it.
+        // An access failure is not a per-response error: like the same exception
+        // thrown by a procedure, it answers the whole batch with a status code.
+        if (array_is_list($payload)) {
+            $responses = [];
+
+            foreach ($payload as $response) {
+                $responses[] = $this->encodeResponse($response, $errorResponseFactory);
+            }
+
+            return new ServerResponse('[' . implode(',', $responses) . ']');
+        }
+
+        return new ServerResponse($this->encodeResponse($payload, $errorResponseFactory));
     }
 
     /**
-     * Check existence and get value of server variable
+     * Whether the application asked to handle this exception itself.
      *
-     * @param  string $variable
-     *
-     * @return string|null
+     * Registering an exception the server answers with a status code, or one of
+     * its ancestors, does not take that answer away: only something more
+     * specific than AuthenticationFailureException or AccessDeniedException
+     * replaces the 401 and 403 they produce.
      */
-    protected function getServerVariable($variable)
+    private function isHandledByApplication(Throwable $exception): bool
     {
-        return isset($this->serverVariable[$variable]) ? $this->serverVariable[$variable] : null;
+        $answeredWithAStatusCode = $exception instanceof AuthenticationFailureException
+            || $exception instanceof AccessDeniedException;
+
+        foreach ($this->localExceptions as $localException) {
+            if (!$exception instanceof $localException) {
+                continue;
+            }
+
+            if (
+                $answeredWithAStatusCode
+                && !is_subclass_of($localException, AuthenticationFailureException::class)
+                && !is_subclass_of($localException, AccessDeniedException::class)
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function encodeResponse(mixed $response, ErrorResponseFactory $errorResponseFactory): string
+    {
+        try {
+            return json_encode($response, self::ENCODING_OPTIONS);
+        } catch (Throwable $exception) {
+            // Encoding a result runs application code, so it can raise what the
+            // application asked to handle itself, and what the server answers
+            // with a status code.
+            if (
+                $this->isHandledByApplication($exception)
+                || $exception instanceof AuthenticationFailureException
+                || $exception instanceof AccessDeniedException
+            ) {
+                throw $exception;
+            }
+
+            $id = is_array($response) ? $response['id'] ?? null : null;
+            $error = $errorResponseFactory->create(new ResponseEncodingFailureException($exception->getMessage()));
+
+            // The id has already been validated, this only makes sure the
+            // answer to a failed encoding cannot fail to encode in turn.
+            $id = is_int($id) || is_string($id) || (is_float($id) && is_finite($id)) ? $id : null;
+
+            return $this->encodeSafely(['jsonrpc' => '2.0', 'error' => $error, 'id' => $id]);
+        }
+    }
+
+    /**
+     * Encode a response that must not fail to encode.
+     *
+     * The payload holds an integer, an identifier that has been validated and
+     * text coming from an exception, which is the only part that can be
+     * malformed, so invalid byte sequences are replaced rather than refused.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function encodeSafely(array $payload): string
+    {
+        return (string) json_encode(
+            $payload,
+            (self::ENCODING_OPTIONS & ~JSON_THROW_ON_ERROR) | JSON_INVALID_UTF8_SUBSTITUTE,
+        );
+    }
+
+    private function unauthorized(): ServerResponse
+    {
+        return new ServerResponse(
+            (string) json_encode([
+                'jsonrpc' => '2.0',
+                'error' => ['code' => 401, 'message' => 'Unauthorized'],
+                'id' => null,
+            ], self::ENCODING_OPTIONS),
+            401,
+            [
+                'Content-Type' => 'application/json',
+                'WWW-Authenticate' => 'Basic realm="JsonRPC"',
+            ],
+        );
+    }
+
+    private function forbidden(): ServerResponse
+    {
+        return new ServerResponse(
+            (string) json_encode([
+                'jsonrpc' => '2.0',
+                'error' => ['code' => 403, 'message' => 'Forbidden'],
+                'id' => null,
+            ], self::ENCODING_OPTIONS),
+            403,
+        );
     }
 }

@@ -1,57 +1,31 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
-use Exception;
+use Throwable;
 
 /**
- * Class ResponseException
+ * An error object returned by the server.
  *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * @link https://www.jsonrpc.org/specification#error_object
  */
 class ResponseException extends RpcCallFailedException
 {
     /**
-     * A value that contains additional information about the error.
-     *
-     * @link http://www.jsonrpc.org/specification#error_object
-     * @var mixed
+     * @param mixed $data Additional information attached to the error object
      */
-    protected $data;
-
-    /**
-     * @param string $message [optional] The Exception message to throw.
-     * @param int $code [optional] The Exception code.
-     * @param Exception|null $previous [optional] The previous exception used for the exception chaining. Since 5.3.0
-     * @param mixed $data [optional] A value that contains additional information about the error.
-     */
-    public function __construct($message = '', $code = 0, ?Exception $previous = null, $data = null)
-    {
+    public function __construct(
+        string $message = '',
+        int $code = 0,
+        ?Throwable $previous = null,
+        public readonly mixed $data = null,
+    ) {
         parent::__construct($message, $code, $previous);
-        $this->setData($data);
     }
 
-    /**
-     * Attach additional information
-     *
-     * @param mixed $data [optional] A value that contains additional information about the error.
-     *
-     * @return \JsonRPC\Exception\ResponseException
-     */
-    public function setData($data = null)
-    {
-        $this->data = $data;
-
-        return $this;
-    }
-
-    /**
-     * Get additional information
-     *
-     * @return mixed|null
-     */
-    public function getData()
+    public function getData(): mixed
     {
         return $this->data;
     }

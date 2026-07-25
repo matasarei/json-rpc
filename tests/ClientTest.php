@@ -1,160 +1,198 @@
 <?php
 
+declare(strict_types=1);
+
+namespace JsonRPC\Tests;
+
 use JsonRPC\Client;
+use JsonRPC\Client\BatchBuilder;
+use JsonRPC\Exception\InvalidJsonRpcFormatException;
+use JsonRPC\Exception\MethodNotFoundException;
+use JsonRPC\Exception\ResponseException;
+use JsonRPC\HttpClient;
+use JsonRPC\Tests\Doubles\FakeTransport;
+use JsonRPC\Tests\Doubles\SequentialIdGenerator;
+use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
-class ClientTest extends TestCase
+#[CoversClass(Client::class)]
+final class ClientTest extends TestCase
 {
-    private $httpClient;
+    private FakeTransport $transport;
+
+    private Client $client;
 
     protected function setUp(): void
     {
-        $this->httpClient = $this
-            ->getMockBuilder('\JsonRPC\HttpClient')
-            ->onlyMethods(['execute'])
-            ->getMock();
+        $this->transport = FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]);
+        $this->client = new Client(
+            '',
+            new HttpClient('https://example.com/rpc', $this->transport),
+            new SequentialIdGenerator(),
+        );
     }
 
-    public function testSendBatch()
+    public function testSendsARequestAndReturnsItsResult(): void
     {
-        $client = new Client('', false, $this->httpClient);
-        $response = [
-            [
-                'jsonrpc' => '2.0',
-                'result' => 'c',
-                'id' => 1,
-            ],
-            [
-                'jsonrpc' => '2.0',
-                'result' => 'd',
-                'id' => 2,
-            ]
-        ];
+        $result = $this->client->execute('methodA', ['a' => 'b']);
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with($this->stringContains('[{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue($response));
-
-
-        $result = $client->batch()
-            ->execute('methodA', ['a' => 'b'])
-            ->execute('methodB', ['a' => 'b'])
-            ->send();
-
-        $this->assertEquals(['c', 'd'], $result);
+        $this->assertSame('foobar', $result);
+        $this->assertSame(
+            '{"jsonrpc":"2.0","method":"methodA","id":1,"params":{"a":"b"}}',
+            $this->transport->lastRequest()->body,
+        );
     }
 
-    public function testSendNotification()
+    public function testPassesRequestAttributesIdAndHeaders(): void
     {
-        $client = new Client('', false, $this->httpClient);
+        $transport = FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 'my-id']);
+        $client = new Client('', new HttpClient('https://example.com/rpc', $transport));
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with('{"jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}')
-            ->will($this->returnValue(null));
+        $client->execute('methodA', [], ['auth' => 'token'], 'my-id', ['X-Request' => 'yes']);
 
-        $this->assertNull($client->notify('methodA', ['a' => 'b']));
+        $this->assertSame(
+            '{"auth":"token","jsonrpc":"2.0","method":"methodA","id":"my-id"}',
+            $transport->lastRequest()->body,
+        );
+        $this->assertSame('yes', $transport->lastRequest()->headers['X-Request']);
     }
 
-    public function testSendBatchOfNotificationsOnly()
+    public function testRefusesAnAnswerThatCarriesAnotherRequestId(): void
     {
-        $client = new Client('', false, $this->httpClient);
+        $client = new Client(
+            '',
+            new HttpClient('', FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'other', 'id' => 999])),
+            new SequentialIdGenerator(),
+        );
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with('[{"jsonrpc":"2.0","method":"methodA"}, {"jsonrpc":"2.0","method":"methodB"}]')
-            ->will($this->returnValue(null));
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('The response does not answer the request with id 1');
 
-        $result = $client->batch()
-            ->notify('methodA')
-            ->notify('methodB')
-            ->send();
-
-        $this->assertNull($result);
+        $client->execute('methodA');
     }
 
-    public function testSendBatchWithMixedCallsAndNotifications()
+    public function testRefusesAnAnswerThatIsJustSomeOtherJson(): void
     {
-        $client = new Client('', false, $this->httpClient);
-        $response = [
-            [
-                'jsonrpc' => '2.0',
-                'result' => 'c',
-                'id' => 1,
-            ],
-        ];
+        $client = new Client(
+            '',
+            new HttpClient('', FakeTransport::withJson(['status' => 'maintenance', 'retry_after' => 30])),
+        );
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodB"}]'))
-            ->will($this->returnValue($response));
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('neither a result nor an error member');
 
-        $result = $client->batch()
-            ->execute('methodA', ['a' => 'b'])
-            ->notify('methodB')
-            ->send();
-
-        $this->assertEquals(['c'], $result);
+        $client->execute('methodA');
     }
 
-    public function testSendRequest()
+    public function testThrowsTheErrorReturnedByTheServer(): void
     {
-        $client = new Client('', false, $this->httpClient);
+        $client = new Client('', new HttpClient('', FakeTransport::withJson([
+            'jsonrpc' => '2.0',
+            'error' => ['code' => -32601, 'message' => 'Method not found'],
+            'id' => 1,
+        ])));
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
+        $this->expectException(MethodNotFoundException::class);
 
-        $result = $client->execute('methodA', ['a' => 'b']);
-        $this->assertEquals($result, 'foobar');
+        $client->execute('methodA');
     }
 
-    public function testSendRequestWithError()
+    /**
+     * Calls a procedure the way a user would, with the name as a method.
+     */
+    private function magicCall(Client|BatchBuilder $target, string $procedure, mixed ...$arguments): mixed
     {
-        $client = new Client('', false, $this->httpClient);
-
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue([
-                'jsonrpc' => '2.0',
-                'error' => [
-                    'code' => -32601,
-                    'message' => 'Method not found',
-                ],
-            ]));
-
-        $this->expectException('BadFunctionCallException');
-        $client->execute('methodA', ['a' => 'b']);
+        return $target->{$procedure}(...$arguments);
     }
 
-    public function testSendRequestWithErrorAndReturnExceptionEnabled()
+    public function testMagicCallsPassASingleArrayAsNamedArguments(): void
     {
-        $client = new Client('', true, $this->httpClient);
+        $this->magicCall($this->client, 'methodA', ['a' => 'b']);
 
-        $this->httpClient
-            ->expects($this->once())
-            ->method('execute')
-            ->with($this->stringContains('{"jsonrpc":"2.0","method":"methodA","id":'))
-            ->will($this->returnValue([
-                'jsonrpc' => '2.0',
-                'error' => [
-                    'code' => -32601,
-                    'message' => 'Method not found',
-                ],
-            ]));
+        $this->assertSame(
+            '{"jsonrpc":"2.0","method":"methodA","id":1,"params":{"a":"b"}}',
+            $this->transport->lastRequest()->body,
+        );
+    }
 
-        $result = $client->execute('methodA', ['a' => 'b']);
-        $this->assertInstanceOf('BadFunctionCallException', $result);
+    public function testMagicCallsPassSeveralArgumentsAsPositionalArguments(): void
+    {
+        $this->magicCall($this->client, 'methodA', 3, 4);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","method":"methodA","id":1,"params":[3,4]}',
+            $this->transport->lastRequest()->body,
+        );
+    }
+
+    public function testPositionalModeKeepsASingleArrayArgumentPositional(): void
+    {
+        $this->magicCall($this->client->withPositionalArguments(), 'methodA', ['a', 'b']);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","method":"methodA","id":1,"params":[["a","b"]]}',
+            $this->transport->lastRequest()->body,
+        );
+    }
+
+    public function testSendsANotificationWithoutAnId(): void
+    {
+        $transport = FakeTransport::withBody('', 204);
+        $client = new Client('', new HttpClient('', $transport));
+
+        $client->notify('methodA', ['a' => 'b']);
+
+        $this->assertSame('{"jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}', $transport->lastRequest()->body);
+    }
+
+    public function testNotificationPayloadHasNoIdMember(): void
+    {
+        $transport = FakeTransport::withBody('', 204);
+
+        (new Client('', new HttpClient('', $transport)))->notify('methodA', ['a' => 'b'], ['auth' => 'token']);
+
+        $this->assertSame(
+            '{"auth":"token","jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}',
+            $transport->lastRequest()->body,
+        );
+    }
+
+    public function testBatchReturnsAFreshBuilderEveryTime(): void
+    {
+        $first = $this->client->batch();
+
+        $this->assertInstanceOf(BatchBuilder::class, $first);
+        $this->assertNotSame($first, $this->client->batch());
+    }
+
+    public function testBatchInheritsThePositionalArgumentSetting(): void
+    {
+        $transport = FakeTransport::withJson([['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1]]);
+        $client = new Client('', new HttpClient('', $transport), new SequentialIdGenerator());
+
+        $batch = $client->withPositionalArguments()->batch();
+        $this->magicCall($batch, 'methodA', ['a', 'b']);
+        $batch->send();
+
+        $this->assertStringContainsString('"params":[["a","b"]]', $transport->lastRequest()->body);
+    }
+
+    public function testBuildsItsOwnHttpClientWhenNoneIsGiven(): void
+    {
+        $client = new Client('https://example.com/rpc');
+
+        $this->assertInstanceOf(HttpClient::class, $client->getHttpClient());
+        $this->assertNotSame($client->getHttpClient(), (new Client('https://example.com/rpc'))->getHttpClient());
+    }
+
+    public function testForwardsCredentialsToTheHttpClient(): void
+    {
+        $this->client->authentication('user', 'pass');
+        $this->client->execute('methodA');
+
+        $this->assertSame(
+            'Basic ' . base64_encode('user:pass'),
+            $this->transport->lastRequest()->headers['Authorization'],
+        );
     }
 }
