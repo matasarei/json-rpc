@@ -1,158 +1,82 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
 use Closure;
+use JsonException;
 use JsonRPC\Exception\AccessDeniedException;
 use JsonRPC\Exception\ConnectionFailureException;
 use JsonRPC\Exception\ResponseException;
 use JsonRPC\Exception\ServerErrorException;
-use JsonRPC\Logger\ErrorLogLogger;
+use JsonRPC\Transport\CookieJar;
+use JsonRPC\Transport\DefaultTransportFactory;
+use JsonRPC\Transport\TransportFactoryInterface;
+use JsonRPC\Transport\TransportInterface;
+use JsonRPC\Transport\TransportOptions;
+use JsonRPC\Transport\TransportRequest;
+use JsonRPC\Transport\TransportResponse;
+use LogicException;
 use Psr\Log\LoggerInterface;
 
 /**
- * Class HttpClient
+ * The HTTP session of a client: headers, credentials, cookies and logging.
  *
- * @package JsonRPC
- * @author  Frederic Guillot
+ * The bytes go over the wire through a TransportInterface, which defaults to
+ * cURL or stream wrappers and can be replaced by any PSR-18 client.
  */
-class HttpClient
+final class HttpClient
 {
-    /**
-     * URL of the server
-     *
-     * @var string
-     */
-    protected $url;
+    private const SENSITIVE_HEADERS = ['authorization', 'cookie', 'set-cookie', 'proxy-authorization'];
 
     /**
-     * HTTP client connection timeout
-     *
-     * @var integer
+     * @var array<string, string>
      */
-    protected $timeout = 5;
-
-    /**
-     * Total transfer timeout, 0 means no limit
-     *
-     * @var integer
-     */
-    protected $executionTimeout = 0;
-
-    /**
-     * Default HTTP headers to send to the server
-     *
-     * @var array
-     */
-    protected $headers = [
-        'User-Agent: JSON-RPC PHP Client <https://github.com/fguillot/JsonRPC>',
-        'Content-Type: application/json',
-        'Accept: application/json',
-        'Connection: close',
+    private array $headers = [
+        'User-Agent' => 'JSON-RPC PHP Client <https://github.com/matasarei/json-rpc>',
+        'Content-Type' => 'application/json',
+        'Accept' => 'application/json',
+        'Connection' => 'close',
     ];
 
-    /**
-     * Username for authentication
-     *
-     * @var string
-     */
-    protected $username;
+    private ?string $username = null;
 
-    /**
-     * Password for authentication
-     *
-     * @var string
-     */
-    protected $password;
+    private ?string $password = null;
 
-    /**
-     * PSR-3 logger for debug output
-     *
-     * @var LoggerInterface|null
-     */
-    protected $logger;
+    private ?LoggerInterface $logger = null;
 
-    /**
-     * Cookies
-     *
-     * @var array
-     */
-    protected $cookies = [];
+    private ?Closure $beforeRequest = null;
 
-    /**
-     * SSL certificates verification
-     *
-     * @var boolean
-     */
-    protected $verifySslCertificate = true;
+    private TransportOptions $options;
 
-    /**
-     * SSL client certificate
-     *
-     * @var string
-     */
-    protected $sslLocalCert;
+    private readonly bool $hasCustomTransport;
 
-    /**
-     * Callback called before the doing the request
-     *
-     * @var Closure
-     */
-    protected $beforeRequest;
-
-    /**
-     * CURL or stream meta data options
-     *
-     * @var array
-     */
-    protected $options = [];
-
-    /**
-     * HttpClient constructor
-     *
-     * @param string $url
-     */
-    public function __construct($url = '')
-    {
-        $this->url = $url;
+    public function __construct(
+        private string $url = '',
+        private ?TransportInterface $transport = null,
+        private readonly CookieJar $cookies = new CookieJar(),
+        private readonly TransportFactoryInterface $transportFactory = new DefaultTransportFactory(),
+    ) {
+        $this->hasCustomTransport = $transport !== null;
+        $this->options = new TransportOptions();
     }
 
-    /**
-     * Set URL
-     *
-     * @param string $url
-     *
-     * @return $this
-     */
-    public function withUrl($url)
+    public function withUrl(string $url): self
     {
         $this->url = $url;
 
         return $this;
     }
 
-    /**
-     * Set username
-     *
-     * @param string $username
-     *
-     * @return $this
-     */
-    public function withUsername($username)
+    public function withUsername(string $username): self
     {
         $this->username = $username;
 
         return $this;
     }
 
-    /**
-     * Set password
-     *
-     * @param string $password
-     *
-     * @return $this
-     */
-    public function withPassword($password)
+    public function withPassword(string $password): self
     {
         $this->password = $password;
 
@@ -160,41 +84,68 @@ class HttpClient
     }
 
     /**
-     * Set connection timeout
-     *
-     * @param integer $timeout
-     *
-     * @return $this
+     * Seconds to wait for the connection to be established.
      */
-    public function withTimeout($timeout)
+    public function withTimeout(int $timeout): self
     {
-        $this->timeout = $timeout;
+        $this->options = $this->configurableOptions()->withConnectTimeout($timeout);
 
         return $this;
     }
 
     /**
-     * Set total transfer timeout (0 = no limit)
-     *
-     * @param integer $timeout
-     *
-     * @return $this
+     * Seconds allowed for the whole transfer, 0 for no limit.
      */
-    public function withExecutionTimeout($timeout)
+    public function withExecutionTimeout(int $timeout): self
     {
-        $this->executionTimeout = $timeout;
+        $this->options = $this->configurableOptions()->withTimeout($timeout);
+
+        return $this;
+    }
+
+    public function withoutSslVerification(): self
+    {
+        $this->options = $this->configurableOptions()->withSslVerification(false);
 
         return $this;
     }
 
     /**
-     * Set headers
-     *
-     * @param array $headers
-     *
-     * @return $this
+     * Certificate authority bundle used to verify the server certificate.
      */
-    public function withHeaders(array $headers)
+    public function withCaFile(string $path): self
+    {
+        $this->options = $this->configurableOptions()->withCaFile($path);
+
+        return $this;
+    }
+
+    /**
+     * Client certificate sent to the server.
+     */
+    public function withLocalCert(string $path): self
+    {
+        $this->options = $this->configurableOptions()->withLocalCert($path);
+
+        return $this;
+    }
+
+    /**
+     * Transport specific options: raw cURL options or stream context overrides.
+     *
+     * @param array<int|string, mixed> $options
+     */
+    public function withTransportOptions(array $options): self
+    {
+        $this->options = $this->configurableOptions()->withExtraOptions($options);
+
+        return $this;
+    }
+
+    /**
+     * @param array<string, string> $headers Values keyed by header name
+     */
+    public function withHeaders(array $headers): self
     {
         $this->headers = array_merge($this->headers, $headers);
 
@@ -202,28 +153,33 @@ class HttpClient
     }
 
     /**
-     * Set cookies
-     *
-     * @param array $cookies
-     * @param boolean $replace
+     * @param array<string, string> $cookies
      */
-    public function withCookies(array $cookies, $replace = false)
+    public function withCookies(array $cookies, bool $replace = false): self
     {
         if ($replace) {
-            $this->cookies = $cookies;
+            $this->cookies->replace($cookies);
         } else {
-            $this->cookies = array_merge($this->cookies, $cookies);
+            $this->cookies->merge($cookies);
         }
+
+        return $this;
     }
 
     /**
-     * Set a PSR-3 logger to receive request/response debug messages
-     *
-     * @param LoggerInterface $logger
-     *
-     * @return $this
+     * @return array<string, string>
      */
-    public function withLogger(LoggerInterface $logger)
+    public function getCookies(): array
+    {
+        return $this->cookies->cookies;
+    }
+
+    /**
+     * Receive request and response debug messages.
+     *
+     * Credentials carried by headers are redacted before they are logged.
+     */
+    public function withLogger(LoggerInterface $logger): self
     {
         $this->logger = $logger;
 
@@ -231,51 +187,9 @@ class HttpClient
     }
 
     /**
-     * Enable debug mode (logs to the PHP error log)
-     *
-     * @deprecated Use withLogger() with any PSR-3 logger instead
-     *
-     * @return $this
+     * Called with ($client, $payload, $headers) right before the request is sent.
      */
-    public function withDebug()
-    {
-        $this->logger = new ErrorLogLogger();
-
-        return $this;
-    }
-
-    /**
-     * Disable SSL verification
-     *
-     * @return $this
-     */
-    public function withoutSslVerification()
-    {
-        $this->verifySslCertificate = false;
-
-        return $this;
-    }
-
-    /**
-     * Assign a certificate to use TLS
-     *
-     * @return $this
-     */
-    public function withSslLocalCert($path)
-    {
-        $this->sslLocalCert = $path;
-
-        return $this;
-    }
-
-    /**
-     * Assign a callback before the request
-     *
-     * @param Closure $closure
-     *
-     * @return $this
-     */
-    public function withBeforeRequestCallback(Closure $closure)
+    public function withBeforeRequestCallback(Closure $closure): self
     {
         $this->beforeRequest = $closure;
 
@@ -283,310 +197,145 @@ class HttpClient
     }
 
     /**
-     * Get cookies
+     * Send a payload and return the decoded response, or null when the server
+     * answered with an empty body or something that is not JSON.
      *
-     * @return array
-     */
-    public function getCookies()
-    {
-        return $this->cookies;
-    }
-
-    /**
-     * Do the HTTP request
-     *
-     * @param string $payload
-     * @param string[] $headers Headers for this request
-     *
-     * @return array
+     * @param array<string, string> $headers Additional headers for this request
      *
      * @throws AccessDeniedException
      * @throws ConnectionFailureException
      * @throws ResponseException
      * @throws ServerErrorException
      */
-    public function execute($payload, array $headers = [])
+    public function execute(string $payload, array $headers = []): mixed
     {
-        if (is_callable($this->beforeRequest)) {
-            call_user_func_array($this->beforeRequest, [$this, $payload, $headers]);
+        if ($this->beforeRequest instanceof Closure) {
+            ($this->beforeRequest)($this, $payload, $headers);
         }
 
-        $requestHeaders = $this->buildHeaders($headers);
+        $request = new TransportRequest($this->url, $payload, $this->buildHeaders($headers));
 
-        if ($this->isCurlLoaded()) {
-            $ch = curl_init();
-            $headers = [];
-            $options = [
-                CURLOPT_URL => trim($this->url),
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => $this->timeout,
-                CURLOPT_TIMEOUT => $this->executionTimeout,
-                // Redirects are not followed: a JSON-RPC endpoint is a fixed POST
-                // URL, and following a redirect would resend the Authorization and
-                // Cookie headers to the (possibly attacker-controlled) new location.
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_SSL_VERIFYPEER => $this->verifySslCertificate,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => $payload,
-                CURLOPT_HTTPHEADER => $requestHeaders,
-                CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$headers) {
-                    $headers[] = rtrim($header, "\r\n");
+        $this->logger?->debug('Request', [
+            'url' => $request->url,
+            'payload' => $request->body,
+            'headers' => $this->redactHeaders($request->headers),
+        ]);
 
-                    return strlen($header);
-                }
-            ];
+        $response = $this->transport()->send($request);
 
-            $options = array_replace_recursive($options, $this->options);
+        $this->logger?->debug('Response', [
+            'status' => $response->statusCode,
+            'payload' => $response->body,
+            'headers' => $this->redactHeaders($response->headers),
+        ]);
 
-            if ($this->logger !== null) {
-                $loggedOptions = $options;
-                $loggedOptions[CURLOPT_HTTPHEADER] = $this->redactHeaders($loggedOptions[CURLOPT_HTTPHEADER]);
+        $this->cookies->store($response->headerValues('Set-Cookie'));
 
-                foreach ([CURLOPT_USERPWD, CURLOPT_COOKIE, CURLOPT_XOAUTH2_BEARER] as $secretOption) {
-                    if (isset($loggedOptions[$secretOption])) {
-                        $loggedOptions[$secretOption] = '[redacted]';
-                    }
-                }
+        $decoded = $this->decode($response->body);
+        $this->handleStatusCode($response, $decoded !== null);
 
-                $this->logger->debug('CURL options', ['options' => $loggedOptions]);
-            }
+        return $decoded;
+    }
 
-            curl_setopt_array($ch, $options);
-
-            if ($this->sslLocalCert !== null) {
-                curl_setopt($ch, CURLOPT_CAINFO, $this->sslLocalCert);
-            }
-
-            $response = curl_exec($ch);
-
-            if (false === $response) {
-                if (curl_errno($ch) === CURLE_OPERATION_TIMEDOUT) {
-                    throw new ConnectionFailureException('Operation timed out');
-                }
-
-                throw new ConnectionFailureException('Unable to establish a connection');
-            }
-
-            $response = json_decode($response, true);
-        } else {
-            $stream = fopen(trim($this->url), 'r', false, $this->buildContext($payload, $requestHeaders));
-
-            if (!is_resource($stream)) {
-                throw new ConnectionFailureException('Unable to establish a connection');
-            }
-
-            $metadata = stream_get_meta_data($stream);
-            $headers = $metadata['wrapper_data'];
-            $response = json_decode(stream_get_contents($stream), true);
-
-            fclose($stream);
-        }
-
-        if ($this->logger !== null) {
-            $this->logger->debug('Request', [
-                'payload' => is_string($payload) ? $payload : json_encode($payload),
-                'headers' => $this->redactHeaders($requestHeaders),
-            ]);
-            $this->logger->debug('Response', [
-                'payload' => json_encode($response),
-                'headers' => $this->redactHeaders($headers),
-            ]);
-        }
-
-        $this->handleExceptions($headers, is_array($response));
-        $this->parseCookies($headers);
-
-        return $response;
+    private function transport(): TransportInterface
+    {
+        return $this->transport ??= $this->transportFactory->create($this->options);
     }
 
     /**
-     * Prepare stream context
-     *
-     * @param string $payload
-     * @param string[] $headers
-     *
-     * @return resource
+     * Connection settings belong to the built-in transports; an injected one
+     * carries its own configuration.
      */
-    protected function buildContext($payload, array $headers = [])
+    private function configurableOptions(): TransportOptions
     {
-        $options = [
-            'http' => [
-                'method' => 'POST',
-                'protocol_version' => 1.1,
-                'timeout' => $this->executionTimeout > 0 ? $this->executionTimeout : $this->timeout,
-                // Do not follow redirects (see CURLOPT_FOLLOWLOCATION above):
-                // follow_location => 0 disables it, max_redirects => 1 means
-                // "only the initial request" as an additional safeguard.
-                'follow_location' => 0,
-                'max_redirects' => 1,
-                'header' => implode("\r\n", $headers),
-                'content' => $payload,
-                'ignore_errors' => true,
-            ],
-            'ssl' => [
-                'verify_peer' => $this->verifySslCertificate,
-                'verify_peer_name' => $this->verifySslCertificate
-            ]
-        ];
-
-        if ($this->sslLocalCert !== null) {
-            $options['ssl']['local_cert'] = $this->sslLocalCert;
+        if ($this->hasCustomTransport) {
+            throw new LogicException(
+                'Connection settings do not apply to an injected transport, configure that transport instead.',
+            );
         }
 
-        $options = array_replace_recursive($options, $this->options);
-
-        return stream_context_create($options);
+        return $this->options;
     }
 
     /**
-     * Parse cookies from response
+     * @param array<string, string> $headers
      *
-     * @param array $headers
+     * @return array<string, string>
      */
-    protected function parseCookies(array $headers)
-    {
-        foreach ($headers as $header) {
-            $pos = stripos($header, 'Set-Cookie:');
-
-            if ($pos !== false) {
-                // Only the first name=value pair is the cookie itself,
-                // the rest are attributes (Path, Expires, Secure, ...)
-                $cookie = explode(';', substr($header, $pos + 11))[0];
-                $item = explode('=', $cookie, 2);
-
-                if (count($item) === 2) {
-                    $name = trim($item[0]);
-                    $value = trim($item[1], " \t\r\n");
-                    $this->cookies[$name] = $value;
-                }
-            }
-        }
-    }
-
-    /**
-     * Throw an exception according the HTTP response
-     *
-     * @param array $headers
-     * @param bool $isJsonResponse
-     *
-     * @throws AccessDeniedException
-     * @throws ConnectionFailureException
-     * @throws ServerErrorException
-     * @throws ResponseException
-     */
-    public function handleExceptions(array $headers, $isJsonResponse = false)
-    {
-        $exceptions = [
-            401 => '\JsonRPC\Exception\AccessDeniedException',
-            403 => '\JsonRPC\Exception\AccessDeniedException',
-            404 => '\JsonRPC\Exception\ConnectionFailureException',
-            500 => '\JsonRPC\Exception\ServerErrorException'
-        ];
-
-        $errors = [];
-
-        foreach ($headers as $header) {
-            // Matches HTTP/1.0, HTTP/1.1 and HTTP/2 status lines, with or without a reason phrase
-            if (preg_match('~^HTTP/\d+(?:\.\d+)?\s+(\d{3})~', $header, $matches)) {
-                $statusCode = (int) $matches[1];
-
-                if (isset($exceptions[$statusCode])) {
-                    throw new $exceptions[$statusCode]('Response: ' . $header);
-                }
-
-                // Redirects are never followed (see execute()), so a 3xx
-                // response is terminal and must be reported, not ignored.
-                if ($statusCode >= 300 && $statusCode < 600) {
-                    $errors[] = $header;
-                }
-            }
-        }
-
-        if ($isJsonResponse) {
-            return;
-        }
-
-        if (!empty($errors)) {
-            throw new ResponseException(sprintf('Unexpected response: %s', current($errors)));
-        }
-    }
-
-    /**
-     * @param int $name
-     * @param mixed $value
-     */
-    public function addOption($name, $value)
-    {
-        $this->options[$name] = $value;
-    }
-
-    /**
-     * Set the CURL or stream meta data options
-     *
-     * @param array $options
-     */
-    public function setOptions(array $options)
-    {
-        if (is_array($options)) {
-            $this->options = $options;
-        } else {
-            $this->options = [];
-        }
-    }
-
-    /**
-     * Tests if the curl extension is loaded
-     *
-     * @return bool
-     */
-    protected function isCurlLoaded()
-    {
-        return extension_loaded('curl');
-    }
-
-    /**
-     * Replace values of sensitive headers before logging
-     *
-     * @param string[] $headers
-     *
-     * @return string[]
-     */
-    protected function redactHeaders(array $headers)
-    {
-        return array_map(function ($header) {
-            if (preg_match('/^(Authorization|Cookie|Set-Cookie|Proxy-Authorization)\s*:/i', $header, $matches)) {
-                return $matches[1] . ': [redacted]';
-            }
-
-            return $header;
-        }, $headers);
-    }
-
-    /**
-     * Prepare Headers
-     *
-     * @param array $headers
-     *
-     * @return array
-     */
-    protected function buildHeaders(array $headers)
+    private function buildHeaders(array $headers): array
     {
         $headers = array_merge($this->headers, $headers);
 
-        if (!empty($this->username) && !empty($this->password)) {
-            $headers[] = 'Authorization: Basic ' . base64_encode($this->username . ':' . $this->password);
+        if ($this->username !== null && $this->password !== null) {
+            $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
         }
 
-        if (!empty($this->cookies)) {
-            $cookies = [];
+        $cookies = $this->cookies->headerValue();
 
-            foreach ($this->cookies as $key => $value) {
-                $cookies[] = $key . '=' . $value;
-            }
-
-            $headers[] = 'Cookie: ' . implode('; ', $cookies);
+        if ($cookies !== null) {
+            $headers['Cookie'] = $cookies;
         }
 
         return $headers;
+    }
+
+    private function decode(string $body): mixed
+    {
+        if (trim($body) === '') {
+            return null;
+        }
+
+        try {
+            return json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            return null;
+        }
+    }
+
+    /**
+     * @throws AccessDeniedException
+     * @throws ConnectionFailureException
+     * @throws ResponseException
+     * @throws ServerErrorException
+     */
+    private function handleStatusCode(TransportResponse $response, bool $isJsonResponse): void
+    {
+        $message = sprintf('Response with status code %d', $response->statusCode);
+
+        $exception = match ($response->statusCode) {
+            401, 403 => new AccessDeniedException($message),
+            404 => new ConnectionFailureException($message),
+            500 => new ServerErrorException($message),
+            default => null,
+        };
+
+        if ($exception !== null) {
+            throw $exception;
+        }
+
+        // A JSON-RPC error object is a valid answer whatever the status code,
+        // but anything else with a redirect or error status has to be reported:
+        // redirects are never followed, so they are terminal.
+        if ($isJsonResponse || $response->statusCode < 300 || $response->statusCode >= 600) {
+            return;
+        }
+
+        throw new ResponseException(sprintf('Unexpected response with status code %d', $response->statusCode));
+    }
+
+    /**
+     * @param array<string, string|list<string>> $headers
+     *
+     * @return array<string, string|list<string>>
+     */
+    private function redactHeaders(array $headers): array
+    {
+        $redacted = [];
+
+        foreach ($headers as $name => $value) {
+            $redacted[$name] = in_array(strtolower($name), self::SENSITIVE_HEADERS, true) ? '[redacted]' : $value;
+        }
+
+        return $redacted;
     }
 }
