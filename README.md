@@ -226,6 +226,7 @@ a batch twice.
 | `MethodNotFoundException` | error code -32601 (extends `BadFunctionCallException`) |
 | `InvalidParamsException` | error code -32602 (extends `InvalidArgumentException`) |
 | `InvalidJsonFormatException` | error code -32700, or an answer that is not JSON |
+| `ResponseException` | any other error object the server defines; `getCode()` and `getData()` carry its code and data |
 | `BatchFailedException` | at least one call of a batch failed |
 
 An error object the server sends is relayed whatever the status code carrying it,
@@ -259,9 +260,9 @@ $client = new Client($url, new HttpClient($url, new Psr18Transport(
 ```
 
 Authentication, cookies, logging and the reading of status codes work the same on every
-transport. Redirects are the exception: the built-in transports never follow one, and so
-does Guzzle through its PSR-18 entry point, but symfony/http-client follows them unless
-its `max_redirects` option is set to `0`. Compression is another: the built-in transports
+transport. Redirects are the exception: the built-in transports never follow one, and
+neither does Guzzle through its PSR-18 entry point, but symfony/http-client follows them
+unless its `max_redirects` option is set to `0`. Compression is another: the built-in transports
 do not negotiate it, while a PSR-18 client that does will decode the body for you.
 
 Connection settings configure the built-in transports, so they apply to a client that was
