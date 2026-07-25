@@ -38,6 +38,24 @@ final class CookieJarTest extends TestCase
         $this->assertSame(['session' => 'abc=def', 'theme' => 'dark'], $jar->cookies);
     }
 
+    public function testForgetsACookieTheServerDeletes(): void
+    {
+        $jar = new CookieJar(['session' => 'abc', 'theme' => 'dark', 'keep' => 'me']);
+
+        $jar->store(['session=; Path=/', 'theme=dark; Max-Age=0; Path=/']);
+
+        $this->assertSame(['keep' => 'me'], $jar->cookies);
+    }
+
+    public function testKeepsACookieWithAFutureMaxAge(): void
+    {
+        $jar = new CookieJar();
+
+        $jar->store(['session=abc; Max-Age=3600; Path=/']);
+
+        $this->assertSame(['session' => 'abc'], $jar->cookies);
+    }
+
     public function testIgnoresValuesWithoutAUsableCookiePair(): void
     {
         $jar = new CookieJar();

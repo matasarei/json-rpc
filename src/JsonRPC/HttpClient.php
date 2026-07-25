@@ -271,19 +271,21 @@ final class HttpClient
      */
     private function buildHeaders(array $headers): array
     {
-        $headers = $this->mergeHeaders($this->headers, $headers);
+        $generated = [];
 
         if ($this->username !== null && $this->password !== null) {
-            $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
+            $generated['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
         }
 
         $cookies = $this->cookies->headerValue();
 
         if ($cookies !== null) {
-            $headers['Cookie'] = $cookies;
+            $generated['Cookie'] = $cookies;
         }
 
-        return $headers;
+        // What the caller asked for wins over what this class generates, and
+        // replaces it rather than being sent next to it.
+        return $this->mergeHeaders($generated, $this->mergeHeaders($this->headers, $headers));
     }
 
     /**

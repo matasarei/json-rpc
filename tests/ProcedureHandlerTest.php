@@ -67,10 +67,23 @@ final class ProcedureHandlerTest extends TestCase
         $this->handler->withClassAndMethodArray([
             'addition' => [Procedures::class, 'sum'],
             'greeting' => [new Procedures(), 'greet'],
+            // Without a method, the procedure name is the method name.
+            'sum' => [Procedures::class],
         ]);
 
         $this->assertSame(7, $this->handler->executeProcedure('addition', [3, 4]));
         $this->assertSame('Hello Bob', $this->handler->executeProcedure('greeting', ['name' => 'Bob']));
+        $this->assertSame(3, $this->handler->executeProcedure('sum', [1, 2]));
+    }
+
+    public function testRegistersProceduresWhoseNameLooksLikeANumber(): void
+    {
+        $this->handler
+            ->withCallbackArray(['123' => fn(): string => 'callback'])
+            ->withClassAndMethodArray(['456' => [Procedures::class, 'sum']]);
+
+        $this->assertSame('callback', $this->handler->executeProcedure('123'));
+        $this->assertSame(7, $this->handler->executeProcedure('456', [3, 4]));
     }
 
     public function testBuildsInstancesThroughTheConfiguredFactory(): void
