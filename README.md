@@ -229,10 +229,14 @@ a batch twice.
 | `ResponseException` | any other error object the server defines; `getCode()` and `getData()` carry its code and data |
 | `BatchFailedException` | at least one call of a batch failed |
 
-An error object the server sends is relayed whatever the status code carrying it,
-including 500. Answers are checked before they are returned: one that carries another
-request's id, or that is JSON without being an answer at all — a maintenance page in front
-of the endpoint, for instance — is refused rather than returned as a `null` result.
+An error object the server sends is relayed rather than replaced by the status code
+carrying it, 500 included. The exceptions are 3xx, 401, 403 and 404, which say something
+about the request never reaching the procedure and are reported as they are.
+
+Answers are checked before they are returned: one that carries another request's id, or
+that is JSON without being an answer at all — a maintenance page in front of the endpoint,
+for instance — is refused rather than returned as a `null` result. Inside a batch the same
+check turns into an error for that call.
 
 ### Using another HTTP client
 
@@ -318,6 +322,9 @@ from another one:
 ```php
 $server->withAuthenticationHeader('X-Authorization');
 ```
+
+The value is read the way `Authorization` is: `Basic <base64 of user:password>`, or the
+base64 on its own, so forwarding the original header verbatim works.
 
 ### Middleware
 

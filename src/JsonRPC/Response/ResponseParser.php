@@ -126,7 +126,17 @@ final readonly class ResponseParser
                 continue;
             }
 
-            $results[$position] = $answer['result'] ?? null;
+            // Held to the same standard as a single answer: with neither member
+            // this is not one, and a null result would hide that.
+            if (!array_key_exists('result', $answer)) {
+                $errors[$position] = new InvalidJsonRpcFormatException(
+                    'The response has neither a result nor an error member',
+                );
+
+                continue;
+            }
+
+            $results[$position] = $answer['result'];
         }
 
         return ['results' => $results, 'errors' => $errors];

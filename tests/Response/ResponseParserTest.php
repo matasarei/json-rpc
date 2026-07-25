@@ -170,6 +170,25 @@ final class ResponseParserTest extends TestCase
         $this->assertSame('No response received for the request with id 2', $parsed['errors'][1]->getMessage());
     }
 
+    public function testReportsABatchAnswerWithNeitherAResultNorAnError(): void
+    {
+        $parsed = $this->parser->parseBatch(
+            [['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1], ['id' => 2, 'status' => 'queued']],
+            [1, 2],
+        );
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+        $this->assertInstanceOf(InvalidJsonRpcFormatException::class, $parsed['errors'][1]);
+    }
+
+    public function testKeepsANullResultOfABatchAnswer(): void
+    {
+        $parsed = $this->parser->parseBatch([['jsonrpc' => '2.0', 'result' => null, 'id' => 1]], [1]);
+
+        $this->assertSame([0 => null], $parsed['results']);
+        $this->assertSame([], $parsed['errors']);
+    }
+
     public function testIgnoresAnswersWithoutAUsableId(): void
     {
         $parsed = $this->parser->parseBatch(
