@@ -70,13 +70,19 @@ final class StreamTransport implements TransportInterface
      */
     private function rejectTruncatedBody(TransportResponse $response): void
     {
-        $announced = $response->headerValues('Content-Length')[0] ?? null;
-
-        if ($announced === null || !ctype_digit($announced)) {
+        // These answers carry no body, whatever length they announce.
+        if ($response->statusCode < 200 || $response->statusCode === 204 || $response->statusCode === 304) {
             return;
         }
 
-        $missing = (int) $announced - strlen($response->body);
+        $announced = array_unique($response->headerValues('Content-Length'));
+
+        // Lengths that disagree with each other say nothing reliable.
+        if (count($announced) !== 1 || !ctype_digit($announced[0])) {
+            return;
+        }
+
+        $missing = (int) $announced[0] - strlen($response->body);
 
         if ($missing > 0) {
             throw new ConnectionFailureException(

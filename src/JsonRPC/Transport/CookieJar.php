@@ -18,10 +18,12 @@ final class CookieJar
 
     /**
      * @param array<string, string> $cookies
+     *
+     * @throws InvalidArgumentException When a cookie would break the request
      */
     public function __construct(array $cookies = [])
     {
-        $this->cookies = $cookies;
+        $this->cookies = $this->validated($cookies);
     }
 
     /**
