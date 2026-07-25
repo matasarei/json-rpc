@@ -7,218 +7,38 @@ parameters:
 			path: src/JsonRPC/Logger/ErrorLogLogger.php
 
 		-
-			message: '#^Method JsonRPC\\MiddlewareHandler\:\:execute\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/MiddlewareHandler.php
-
-		-
-			message: '#^Method JsonRPC\\MiddlewareInterface\:\:execute\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/MiddlewareInterface.php
-
-		-
-			message: '#^Binary operation "\." between ''Missing argument\: '' and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
+			message: '#^Method JsonRPC\\ProcedureHandler\:\:instantiate\(\) should return object but returns mixed\.$#'
+			identifier: return.type
 			count: 1
 			path: src/JsonRPC/ProcedureHandler.php
 
 		-
-			message: '#^Cannot access offset 0 on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Cannot access offset 1 on mixed\.$#'
-			identifier: offsetAccess.nonOffsetAccessible
-			count: 3
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Cannot call method getDefaultValue\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Cannot call method getName\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Cannot call method isDefaultValueAvailable\(\) on mixed\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:executeBeforeMethod\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:executeCallback\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:executeMethod\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:executeProcedure\(\) has parameter \$params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getArguments\(\) has parameter \$methodParams with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getArguments\(\) has parameter \$requestParams with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getArguments\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getNamedArguments\(\) has parameter \$methodParams with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getNamedArguments\(\) has parameter \$requestParams with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:getNamedArguments\(\) return type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:isPositionalArguments\(\) has parameter \$request_params with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:withCallbackArray\(\) has parameter \$callbacks with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Method JsonRPC\\ProcedureHandler\:\:withClassAndMethodArray\(\) has parameter \$callbacks with no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$callback of function call_user_func_array expects callable\(\)\: mixed, array\{mixed, non\-empty\-string\} given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method JsonRPC\\ProcedureHandler\:\:executeCallback\(\) expects Closure, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$key of function array_key_exists expects int\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$object of method ReflectionMethod\:\:invokeArgs\(\) expects object\|null, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$objectOrMethod of class ReflectionMethod constructor expects object\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#1 \$object_or_class of function method_exists expects object\|string, mixed given\.$#'
-			identifier: argument.type
-			count: 3
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#2 \$callback of method JsonRPC\\ProcedureHandler\:\:withCallback\(\) expects Closure, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#2 \$method of function method_exists expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#2 \$method of method JsonRPC\\ProcedureHandler\:\:executeMethod\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Parameter \#3 \$method of method JsonRPC\\ProcedureHandler\:\:withClassAndMethod\(\) expects string, mixed given\.$#'
-			identifier: argument.type
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Possibly invalid array key type mixed\.$#'
-			identifier: offsetAccess.invalidOffset
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Property JsonRPC\\ProcedureHandler\:\:\$callbacks type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Property JsonRPC\\ProcedureHandler\:\:\$classes type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
-			count: 1
-			path: src/JsonRPC/ProcedureHandler.php
-
-		-
-			message: '#^Property JsonRPC\\ProcedureHandler\:\:\$instances type has no value type specified in iterable type array\.$#'
-			identifier: missingType.iterableValue
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
 			count: 1
 			path: src/JsonRPC/ProcedureHandler.php
 
 		-
 			message: '#^Argument of an invalid type mixed supplied for foreach, only iterables are supported\.$#'
 			identifier: foreach.nonIterable
+			count: 1
+			path: src/JsonRPC/Request/BatchRequestParser.php
+
+		-
+			message: '#^Cannot call method parse\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/JsonRPC/Request/BatchRequestParser.php
+
+		-
+			message: '#^Cannot call method withCredentials\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/JsonRPC/Request/BatchRequestParser.php
+
+		-
+			message: '#^Cannot call method withLocalException\(\) on mixed\.$#'
+			identifier: method.nonObject
 			count: 1
 			path: src/JsonRPC/Request/BatchRequestParser.php
 
@@ -230,6 +50,12 @@ parameters:
 
 		-
 			message: '#^Parameter \#1 \$value of function count expects array\|Countable, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/JsonRPC/Request/BatchRequestParser.php
+
+		-
+			message: '#^Parameter \#2 \$array of function implode expects array\<string\>, array\<int, mixed\> given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/JsonRPC/Request/BatchRequestParser.php
@@ -259,6 +85,12 @@ parameters:
 			path: src/JsonRPC/Request/RequestParser.php
 
 		-
+			message: '#^Method JsonRPC\\Request\\RequestParser\:\:withMiddlewareHandler\(\) has no return type specified\.$#'
+			identifier: missingType.return
+			count: 1
+			path: src/JsonRPC/Request/RequestParser.php
+
+		-
 			message: '#^Parameter \#1 \$payload of static method JsonRPC\\Validator\\RpcFormatValidator\:\:validate\(\) expects array, mixed given\.$#'
 			identifier: argument.type
 			count: 1
@@ -271,13 +103,13 @@ parameters:
 			path: src/JsonRPC/Request/RequestParser.php
 
 		-
-			message: '#^Parameter \#1 \$procedureName of method JsonRPC\\MiddlewareHandler\:\:withProcedure\(\) expects string, mixed given\.$#'
+			message: '#^Parameter \#2 \$params of method JsonRPC\\ProcedureHandler\:\:executeProcedure\(\) expects array\<mixed\>, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/JsonRPC/Request/RequestParser.php
 
 		-
-			message: '#^Parameter \#2 \$params of method JsonRPC\\ProcedureHandler\:\:executeProcedure\(\) expects array, mixed given\.$#'
+			message: '#^Parameter \#3 \$procedureName of method JsonRPC\\MiddlewareHandler\:\:execute\(\) expects string, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/JsonRPC/Request/RequestParser.php
@@ -373,8 +205,44 @@ parameters:
 			path: src/JsonRPC/Response/ResponseParser.php
 
 		-
+			message: '#^Cannot call method parse\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Cannot call method withBatchLimit\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Cannot call method withCredentials\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Cannot call method withInternalErrorMasking\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Cannot call method withLocalException\(\) on mixed\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: src/JsonRPC/Server.php
+
+		-
 			message: '#^Instanceof between Exception and mixed results in an error\.$#'
 			identifier: instanceof.invalidExprType
+			count: 1
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Method JsonRPC\\ProcedureHandler\:\:withObject\(\) invoked with 1 parameter, 2 required\.$#'
+			identifier: arguments.count
 			count: 1
 			path: src/JsonRPC/Server.php
 
@@ -415,7 +283,25 @@ parameters:
 			path: src/JsonRPC/Server.php
 
 		-
+			message: '#^Method JsonRPC\\Server\:\:parseRequest\(\) should return string but returns mixed\.$#'
+			identifier: return.type
+			count: 2
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Parameter \#1 \$instance of method JsonRPC\\ProcedureHandler\:\:withObject\(\) expects object, mixed given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/JsonRPC/Server.php
+
+		-
 			message: '#^Parameter \#1 \$json of function json_decode expects string, string\|false given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/JsonRPC/Server.php
+
+		-
+			message: '#^Parameter \#2 \$class of method JsonRPC\\ProcedureHandler\:\:withClassAndMethod\(\) expects class\-string\|object, mixed given\.$#'
 			identifier: argument.type
 			count: 1
 			path: src/JsonRPC/Server.php
@@ -561,13 +447,13 @@ parameters:
 		-
 			message: '#^Call to an undefined method JsonRPC\\Client\\BatchBuilder\:\:methodA\(\)\.$#'
 			identifier: method.notFound
-			count: 1
+			count: 2
 			path: tests/Client/BatchBuilderTest.php
 
 		-
 			message: '#^Cannot call method send\(\) on mixed\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 2
 			path: tests/Client/BatchBuilderTest.php
 
 		-
@@ -629,204 +515,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: tests/HttpClientTest.php
-
-		-
-			message: '#^Method FirstMiddleware\:\:execute\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/MiddlewareHandlerTest.php
-
-		-
-			message: '#^Method MiddlewareHandlerTest\:\:testMiddlewareCanRaiseException\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/MiddlewareHandlerTest.php
-
-		-
-			message: '#^Method SecondMiddleware\:\:execute\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/MiddlewareHandlerTest.php
-
-		-
-			message: '#^Binary operation "\+" between \(array\|float\|int\) and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 3
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Binary operation "\+" between mixed and 2 results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Binary operation "\+" between mixed and mixed results in an error\.$#'
-			identifier: binaryOp.invalid
-			count: 3
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method A\:\:getAll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method A\:\:getAll\(\) has parameter \$p1 with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method A\:\:getAll\(\) has parameter \$p2 with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method A\:\:getAll\(\) has parameter \$p3 with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method B\:\:getAll\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method B\:\:getAll\(\) has parameter \$p1 with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ClassWithBeforeMethod\:\:before\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ClassWithBeforeMethod\:\:before\(\) has parameter \$procedure with no type specified\.$#'
-			identifier: missingType.parameter
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ClassWithBeforeMethod\:\:myProcedure\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ClassWithMagicMethods\:\:legit\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testBeforeMethod\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testBindNamedArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testBindPositionalArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testCallbackNotFound\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testClassNotFound\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testIsPositionalArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testMagicMethodOnInstanceIsNotCallable\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testMethodNotFound\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testNotEnoughArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testProcedureNotFound\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testRegisterNamedArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testRegisterPositionalArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testRegularMethodOnInstanceStillCallable\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testTooManyArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Method ProcedureHandlerTest\:\:testUndefinedArguments\(\) has no return type specified\.$#'
-			identifier: missingType.return
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Property ClassWithBeforeMethod\:\:\$foobar has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: tests/ProcedureHandlerTest.php
-
-		-
-			message: '#^Property ClassWithMagicMethods\:\:\$constructed has no type specified\.$#'
-			identifier: missingType.property
-			count: 1
-			path: tests/ProcedureHandlerTest.php
 
 		-
 			message: '#^Method ResponseBuilderTest\:\:testBuildResponse\(\) has no return type specified\.$#'

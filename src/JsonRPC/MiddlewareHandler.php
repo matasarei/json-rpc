@@ -1,97 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
+use JsonRPC\Exception\AccessDeniedException;
+use JsonRPC\Exception\AuthenticationFailureException;
+
 /**
- * Class MiddlewareHandler
+ * Runs the registered middleware for a call.
  *
- * @package JsonRPC
- * @author  Frederic Guillot
+ * The handler holds no request state: everything a middleware needs is passed
+ * to execute(), so a single handler can serve every request of a batch.
  */
-class MiddlewareHandler
+final class MiddlewareHandler
 {
     /**
-     * Procedure Name
-     *
-     * @var string
+     * @var list<MiddlewareInterface>
      */
-    protected $procedureName = '';
+    private array $middleware = [];
 
-    /**
-     * Username
-     *
-     * @var string
-     */
-    protected $username = '';
-
-    /**
-     * Password
-     *
-     * @var string
-     */
-    protected $password = '';
-
-    /**
-     * List of middleware to execute before to call the method
-     *
-     * @var MiddlewareInterface[]
-     */
-    protected $middleware = [];
-
-    /**
-     * Set username
-     *
-     * @param  string $username
-     *
-     * @return $this
-     */
-    public function withUsername($username)
-    {
-        if (! empty($username)) {
-            $this->username = $username;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Set password
-     *
-     * @param  string $password
-     *
-     * @return $this
-     */
-    public function withPassword($password)
-    {
-        if (! empty($password)) {
-            $this->password = $password;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Set procedure name
-     *
-     * @param  string $procedureName
-     *
-     * @return $this
-     */
-    public function withProcedure($procedureName)
-    {
-        $this->procedureName = $procedureName;
-
-        return $this;
-    }
-
-    /**
-     * Add a new middleware
-     *
-     * @param  MiddlewareInterface $middleware
-     *
-     * @return MiddlewareHandler
-     */
-    public function withMiddleware(MiddlewareInterface $middleware)
+    public function withMiddleware(MiddlewareInterface $middleware): self
     {
         $this->middleware[] = $middleware;
 
@@ -99,12 +28,13 @@ class MiddlewareHandler
     }
 
     /**
-     * Execute all middleware
+     * @throws AuthenticationFailureException
+     * @throws AccessDeniedException
      */
-    public function execute()
+    public function execute(?string $username, ?string $password, string $procedureName): void
     {
         foreach ($this->middleware as $middleware) {
-            $middleware->execute($this->username, $this->password, $this->procedureName);
+            $middleware->execute($username, $password, $procedureName);
         }
     }
 }
