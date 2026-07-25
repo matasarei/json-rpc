@@ -110,6 +110,11 @@ final readonly class ParameterBinder
         foreach ($signature as $parameter) {
             $name = $parameter->getName();
 
+            // A variadic parameter takes whatever is left, including nothing.
+            if ($parameter->isVariadic()) {
+                continue;
+            }
+
             if (array_key_exists($name, $params)) {
                 $arguments[$name] = $params[$name];
 

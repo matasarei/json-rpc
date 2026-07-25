@@ -48,8 +48,9 @@ final class CookieJar
      */
     public function store(array $setCookieValues): void
     {
-        foreach ($setCookieValues as $value) {
-            $pair = explode(';', $value)[0];
+        foreach ($setCookieValues as $header) {
+            $attributes = explode(';', $header);
+            $pair = array_shift($attributes);
             $separator = strpos($pair, '=');
 
             if ($separator === false) {
@@ -62,8 +63,34 @@ final class CookieJar
                 continue;
             }
 
-            $this->cookies[$name] = trim(substr($pair, $separator + 1), " \t\r\n");
+            $value = trim(substr($pair, $separator + 1), " \t\r\n");
+
+            // An empty value or "Max-Age=0" is how a server deletes a cookie;
+            // keeping it would send a stale session back on the next request.
+            if ($value === '' || $this->isExpired($attributes)) {
+                unset($this->cookies[$name]);
+
+                continue;
+            }
+
+            $this->cookies[$name] = $value;
         }
+    }
+
+    /**
+     * @param list<string> $attributes
+     */
+    private function isExpired(array $attributes): bool
+    {
+        foreach ($attributes as $attribute) {
+            [$name, $value] = array_pad(explode('=', trim($attribute), 2), 2, '');
+
+            if (strcasecmp(trim($name), 'Max-Age') === 0 && (int) trim($value) <= 0) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function isEmpty(): bool

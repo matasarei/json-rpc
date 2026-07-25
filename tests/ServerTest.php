@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JsonRPC\Tests;
 
+use DomainException;
 use JsonRPC\Exception\AccessDeniedException;
 use JsonRPC\MiddlewareHandler;
 use JsonRPC\MiddlewareInterface;
@@ -210,9 +211,23 @@ final class ServerTest extends TestCase
         );
     }
 
+    public function testAnUnencodableIdCannotTakeDownTheRestOfTheBatch(): void
+    {
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},
+            {"jsonrpc":"2.0","method":"sum","params":[1,1],"id":1e400}
+        ]');
+
+        $this->assertSame(
+            '[{"jsonrpc":"2.0","result":7,"id":1},'
+            . '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}]',
+            $body,
+        );
+    }
+
     public function testRejectsAnIdThatIsNotAStringANumberOrNull(): void
     {
-        foreach (['{"a":1}', '[1,2]', 'true'] as $id) {
+        foreach (['{"a":1}', '[1,2]', 'true', '1e400'] as $id) {
             $this->assertSame(
                 '{"jsonrpc":"2.0","error":{"code":-32600,"message":"Invalid Request"},"id":null}',
                 $this->call(sprintf('{"jsonrpc":"2.0","method":"sum","params":[3,4],"id":%s}', $id)),
@@ -230,6 +245,29 @@ final class ServerTest extends TestCase
         );
     }
 
+    public function testCallsAVariadicProcedureWithNamedParameters(): void
+    {
+        $this->server->getProcedureHandler()->withCallback(
+            'tag',
+            fn(string $name, string ...$rest): array => [$name, $rest],
+        );
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":["x",[]],"id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"tag","params":{"name":"x"},"id":1}'),
+        );
+    }
+
+    public function testCallsProceduresWhoseNameLooksLikeANumber(): void
+    {
+        $this->server->getProcedureHandler()->withCallbackArray(['123' => fn(): string => 'numeric']);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","result":"numeric","id":1}',
+            $this->call('{"jsonrpc":"2.0","method":"123","id":1}'),
+        );
+    }
+
     public function testReportsAParameterOfTheWrongTypeAsInvalidParams(): void
     {
         $this->assertSame(
@@ -240,6 +278,67 @@ final class ServerTest extends TestCase
             '{"jsonrpc":"2.0","error":{"code":-32602,"message":"Invalid params"},"id":1}',
             $this->call('{"jsonrpc":"2.0","method":"sum","params":[null,23],"id":1}'),
         );
+    }
+
+    public function testABroadLocalExceptionDoesNotTakeAwayThe401Answer(): void
+    {
+        $this->server->authentication(['user' => 'pass'])->withLocalException(RuntimeException::class);
+
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'));
+
+        $this->assertSame(401, $response->statusCode);
+        $this->assertSame('Basic realm="JsonRPC"', $response->headers['WWW-Authenticate']);
+    }
+
+    public function testABroadLocalExceptionDoesNotTakeAwayThe403Answer(): void
+    {
+        $this->server->allowHosts(['192.168.0.1'])->withLocalException(RuntimeException::class);
+        $this->server->getMiddlewareHandler()->withMiddleware(new class implements MiddlewareInterface {
+            public function execute(?string $username, ?string $password, string $procedureName): void
+            {
+                throw new AccessDeniedException('Not for you');
+            }
+        });
+
+        $hostDenied = $this->server->execute(ServerRequest::fromString(
+            '{"jsonrpc":"2.0","method":"sum","id":1}',
+            ['REMOTE_ADDR' => '10.0.0.1'],
+        ));
+        $this->assertSame(403, $hostDenied->statusCode);
+
+        $this->server->allowHosts([]);
+        $middlewareDenied = $this->server->execute(
+            ServerRequest::fromString('{"jsonrpc":"2.0","method":"sum","id":1}'),
+        );
+        $this->assertSame(403, $middlewareDenied->statusCode);
+    }
+
+    public function testAnExceptionThatIsNotRegisteredIsStillAnsweredToTheClient(): void
+    {
+        // A parse error is raised outside the request handler, so it reaches
+        // the same place a local exception would.
+        $this->server->withLocalException(DomainException::class);
+
+        $this->assertSame(
+            '{"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"},"id":null}',
+            $this->call('{"jsonrpc": "2.0", "method": '),
+        );
+    }
+
+    public function testALocalExceptionRaisedWhileEncodingBubblesOut(): void
+    {
+        $this->server->withLocalException(RuntimeException::class);
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new RuntimeException('handled by the application');
+            }
+        });
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('handled by the application');
+
+        $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"entity","id":1}'));
     }
 
     public function testLetsALocalExceptionExtendingAccessDeniedBubbleOut(): void

@@ -145,11 +145,12 @@ final class ClientTest extends TestCase
         $this->assertStringContainsString('"params":[["a","b"]]', $transport->lastRequest()->body);
     }
 
-    public function testBuildsItsOwnHttpClientFromTheUrl(): void
+    public function testBuildsItsOwnHttpClientWhenNoneIsGiven(): void
     {
         $client = new Client('https://example.com/rpc');
 
         $this->assertInstanceOf(HttpClient::class, $client->getHttpClient());
+        $this->assertNotSame($client->getHttpClient(), (new Client('https://example.com/rpc'))->getHttpClient());
     }
 
     public function testForwardsCredentialsToTheHttpClient(): void

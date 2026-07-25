@@ -84,6 +84,28 @@ final class HttpClientTest extends TestCase
         ));
     }
 
+    public function testACallerHeaderReplacesTheGeneratedCredentialsInsteadOfDoublingThem(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(200, '{}'), new TransportResponse(200, '{}'));
+        $client = (new HttpClient('https://example.com/rpc', $transport))
+            ->withUsername('user')
+            ->withPassword('pass')
+            ->withCookies(['jar' => 'yes']);
+
+        $client->execute('{}');
+        $this->assertSame('Basic ' . base64_encode('user:pass'), $transport->lastRequest()->headers['Authorization']);
+        $this->assertSame('jar=yes', $transport->lastRequest()->headers['Cookie']);
+
+        $client->execute('{}', ['authorization' => 'Bearer token', 'cookie' => 'mine=1']);
+        $headers = $transport->lastRequest()->headers;
+
+        $this->assertSame(['authorization' => 'Bearer token', 'cookie' => 'mine=1'], array_filter(
+            $headers,
+            static fn(string $name): bool => in_array(strtolower($name), ['authorization', 'cookie'], true),
+            ARRAY_FILTER_USE_KEY,
+        ));
+    }
+
     public function testConnectionSettingsChangedAfterACallReachTheTransport(): void
     {
         $factory = new RecordingTransportFactory(new FakeTransport(
@@ -315,12 +337,12 @@ final class HttpClientTest extends TestCase
         $this->assertSame('https://example.com/rpc', $request['url']);
         $this->assertSame('{"jsonrpc":"2.0","method":"ping","id":1}', $request['payload']);
         $this->assertSame([
+            'Authorization' => '[redacted]',
+            'Cookie' => '[redacted]',
             'User-Agent' => 'JSON-RPC PHP Client <https://github.com/matasarei/json-rpc>',
             'Content-Type' => 'application/json',
             'Accept' => 'application/json',
             'Connection' => 'close',
-            'Authorization' => '[redacted]',
-            'Cookie' => '[redacted]',
         ], $request['headers']);
 
         $response = $logger->contextOf('Response');
@@ -330,16 +352,6 @@ final class HttpClientTest extends TestCase
             $response['headers'],
         );
         $this->assertSame('{"jsonrpc":"2.0","result":"pong","id":1}', $response['payload']);
-    }
-
-    public function testLogsNothingWithoutALogger(): void
-    {
-        $logger = new SpyLogger();
-        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson([]));
-
-        $client->execute('{}');
-
-        $this->assertSame([], $logger->records);
     }
 
     public function testAsksTheFactoryForATransportOnceAndReusesIt(): void

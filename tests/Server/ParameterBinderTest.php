@@ -61,6 +61,13 @@ final class ParameterBinderTest extends TestCase
         $this->assertSame([1, 2, 3], $this->binder->bind($signature, [1, 2, 3]));
     }
 
+    public function testBindsNamedParametersOfAVariadicProcedure(): void
+    {
+        $signature = $this->signature(fn(string $name, string ...$rest): array => [$name, $rest]);
+
+        $this->assertSame(['name' => 'x'], $this->binder->bind($signature, ['name' => 'x']));
+    }
+
     public function testAcceptsValuesThatFitTheDeclaredTypes(): void
     {
         $signature = $this->signature(

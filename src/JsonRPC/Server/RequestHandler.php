@@ -109,8 +109,11 @@ final readonly class RequestHandler
             || !is_string($payload['method'] ?? null)
             || (isset($payload['params']) && !is_array($payload['params']))
             // The specification allows a String, a Number or NULL as identifier.
+            // A number that cannot be encoded back, INF for instance, is not
+            // usable as one either.
             || (array_key_exists('id', $payload) && !is_scalar($payload['id']) && $payload['id'] !== null)
             || is_bool($payload['id'] ?? null)
+            || (is_float($payload['id'] ?? null) && !is_finite($payload['id']))
         ) {
             throw new InvalidJsonRpcFormatException('Invalid JSON RPC payload');
         }

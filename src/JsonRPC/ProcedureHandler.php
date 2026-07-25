@@ -103,24 +103,27 @@ final class ProcedureHandler
     }
 
     /**
-     * @param array<string, Closure> $callbacks Callbacks keyed by procedure name
+     * @param array<array-key, Closure> $callbacks Callbacks keyed by procedure name
      */
     public function withCallbackArray(array $callbacks): self
     {
         foreach ($callbacks as $procedure => $callback) {
-            $this->withCallback($procedure, $callback);
+            // A procedure named "123" arrives here as an integer key.
+            $this->withCallback((string) $procedure, $callback);
         }
 
         return $this;
     }
 
     /**
-     * @param array<string, array{class-string|object, string}> $callbacks Class and method keyed by procedure name
+     * @param array<array-key, array{0: class-string|object, 1?: string}> $callbacks
+     *        Class, and optionally method, keyed by procedure name
      */
     public function withClassAndMethodArray(array $callbacks): self
     {
         foreach ($callbacks as $procedure => $callback) {
-            $this->withClassAndMethod($procedure, $callback[0], $callback[1]);
+            // The method is optional here too: it defaults to the procedure name.
+            $this->withClassAndMethod((string) $procedure, $callback[0], $callback[1] ?? '');
         }
 
         return $this;

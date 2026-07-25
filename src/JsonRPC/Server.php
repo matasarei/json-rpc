@@ -164,12 +164,8 @@ final class Server
             // for instance when a JsonSerializable of the application throws.
             return $this->respond($payload, $errorResponseFactory);
         } catch (Throwable $exception) {
-            // What the application asked to handle itself wins over everything
-            // else, even when it extends one of the exceptions below.
-            foreach ($this->localExceptions as $localException) {
-                if ($exception instanceof $localException) {
-                    throw $exception;
-                }
+            if ($this->isHandledByApplication($exception)) {
+                throw $exception;
             }
 
             if ($exception instanceof AuthenticationFailureException) {
@@ -269,21 +265,61 @@ final class Server
         return new ServerResponse($this->encodeResponse($payload, $errorResponseFactory));
     }
 
+    /**
+     * Whether the application asked to handle this exception itself.
+     *
+     * Registering an exception the server answers with a status code, or one of
+     * its ancestors, does not take that answer away: only something more
+     * specific than AuthenticationFailureException or AccessDeniedException
+     * replaces the 401 and 403 they produce.
+     */
+    private function isHandledByApplication(Throwable $exception): bool
+    {
+        $answeredWithAStatusCode = $exception instanceof AuthenticationFailureException
+            || $exception instanceof AccessDeniedException;
+
+        foreach ($this->localExceptions as $localException) {
+            if (!$exception instanceof $localException) {
+                continue;
+            }
+
+            if (
+                $answeredWithAStatusCode
+                && !is_subclass_of($localException, AuthenticationFailureException::class)
+                && !is_subclass_of($localException, AccessDeniedException::class)
+            ) {
+                continue;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
     private function encodeResponse(mixed $response, ErrorResponseFactory $errorResponseFactory): string
     {
         try {
             return json_encode($response, self::ENCODING_OPTIONS);
         } catch (Throwable $exception) {
+            // Encoding a result runs application code, which can raise what the
+            // application asked to handle itself.
+            if ($this->isHandledByApplication($exception)) {
+                throw $exception;
+            }
+
             $id = is_array($response) ? $response['id'] ?? null : null;
             $error = $errorResponseFactory->create(new ResponseEncodingFailureException($exception->getMessage()));
 
-            // The error member only ever holds an integer, a string and the
-            // exception message, so this second encoding cannot fail.
-            return (string) json_encode([
-                'jsonrpc' => '2.0',
-                'error' => $error,
-                'id' => is_scalar($id) ? $id : null,
-            ], self::ENCODING_OPTIONS);
+            // Anything that could fail to encode a second time is dropped: the
+            // error member only holds an integer, a string and the exception
+            // message, and the id is kept only when it is encodable.
+            $id = is_int($id) || is_string($id) || (is_float($id) && is_finite($id)) ? $id : null;
+
+            return (string) json_encode(
+                ['jsonrpc' => '2.0', 'error' => $error, 'id' => $id],
+                self::ENCODING_OPTIONS & ~JSON_THROW_ON_ERROR,
+            );
         }
     }
 
