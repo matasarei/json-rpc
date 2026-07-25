@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JsonRPC;
 
 use Closure;
+use InvalidArgumentException;
 use JsonException;
 use JsonRPC\Exception\AccessDeniedException;
 use JsonRPC\Exception\ConnectionFailureException;
@@ -85,6 +86,8 @@ final class HttpClient
 
     /**
      * Seconds to wait for the connection to be established.
+     *
+     * @throws LogicException When a transport was injected
      */
     public function withTimeout(int $timeout): self
     {
@@ -95,14 +98,19 @@ final class HttpClient
 
     /**
      * Seconds allowed for the whole transfer, 0 for no limit.
+     *
+     * @throws LogicException When a transport was injected
      */
     public function withExecutionTimeout(int $timeout): self
     {
-        $this->options = $this->configurableOptions()->withTimeout($timeout);
+        $this->options = $this->configurableOptions()->withTransferTimeout($timeout);
 
         return $this;
     }
 
+    /**
+     * @throws LogicException When a transport was injected
+     */
     public function withoutSslVerification(): self
     {
         $this->options = $this->configurableOptions()->withSslVerification(false);
@@ -112,6 +120,8 @@ final class HttpClient
 
     /**
      * Certificate authority bundle used to verify the server certificate.
+     *
+     * @throws LogicException When a transport was injected
      */
     public function withCaFile(string $path): self
     {
@@ -122,6 +132,8 @@ final class HttpClient
 
     /**
      * Client certificate sent to the server.
+     *
+     * @throws LogicException When a transport was injected
      */
     public function withLocalCert(string $path): self
     {
@@ -134,6 +146,8 @@ final class HttpClient
      * Transport specific options: raw cURL options or stream context overrides.
      *
      * @param array<int|string, mixed> $options
+     *
+     * @throws LogicException When a transport was injected
      */
     public function withTransportOptions(array $options): self
     {
@@ -206,6 +220,7 @@ final class HttpClient
      * @throws ConnectionFailureException
      * @throws ResponseException
      * @throws ServerErrorException
+     * @throws InvalidArgumentException When a header carries a line break or a null byte
      */
     public function execute(string $payload, array $headers = []): mixed
     {

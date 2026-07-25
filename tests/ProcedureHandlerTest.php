@@ -128,16 +128,19 @@ final class ProcedureHandlerTest extends TestCase
         $this->handler->withObject(new Procedures(), ['missing']);
     }
 
-    public function testCallsTheBeforeMethodWithTheProcedureName(): void
+    public function testCallsTheBeforeMethodWithTheNameOfTheMethodAboutToRun(): void
     {
         $procedures = new Procedures();
         $this->handler
             ->withBeforeMethod('beforeProcedure')
-            ->withObject($procedures, ['sum']);
+            ->withObject($procedures, ['sum'])
+            // The procedure is named differently from the method it runs.
+            ->withClassAndMethod('addition', $procedures, 'greet');
 
         $this->handler->executeProcedure('sum', [3, 4]);
+        $this->handler->executeProcedure('addition', ['name' => 'Bob']);
 
-        $this->assertSame(['sum'], $procedures->before);
+        $this->assertSame(['sum', 'greet'], $procedures->before);
     }
 
     public function testIgnoresTheBeforeMethodWhenTheObjectDoesNotHaveIt(): void

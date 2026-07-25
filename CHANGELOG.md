@@ -23,6 +23,17 @@ complete v1 to v2 mapping.
   and the `ErrorCode` enum for the codes of the specification.
 - IPv6 and IPv6 CIDR support in `HostValidator`.
 
+### Security
+- Secure by default: internal error masking is on, batches are limited to 100 calls,
+  `withObject()` requires an explicit method allowlist, and the server catches `Throwable`
+  so an `Error` raised by a procedure cannot end the response.
+- Header names and values containing a line break or a null byte are refused, so a value
+  an application puts in a header or a cookie cannot inject headers into the request.
+- The cookie jar forgets a cookie the server deletes, instead of sending a stale session
+  for ever.
+- `Set-Cookie` values are redacted from the logs, next to `Authorization`, `Cookie` and
+  `Proxy-Authorization`.
+
 ### Changed
 - Requires PHP 8.4, `psr/log` ^3.0, and declares `strict_types=1` everywhere.
 - Secure by default: internal error masking is on, batches are limited to 100 calls,

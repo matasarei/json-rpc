@@ -212,8 +212,9 @@ $client->batch()
 
 Every exception raised by a failed call implements `JsonRPC\Exception\JsonRpcException`,
 so a single `catch` covers them all. Misuse of the library itself is reported separately,
-with the usual SPL exceptions: `InvalidArgumentException` for a bad registration and
-`LogicException` for a call that does not make sense, such as sending a batch twice.
+with the usual SPL exceptions: `InvalidArgumentException` for a bad registration or an
+unusable header, and `LogicException` for a call that does not make sense, such as sending
+a batch twice.
 
 | Exception | Raised when |
 |---|---|
@@ -342,8 +343,10 @@ An exception registered as local is not turned into a JSON-RPC error: it is thro
 $server->withLocalException(MyDomainException::class);
 ```
 
-`AuthenticationFailureException` and `AccessDeniedException` are always handled by the
-server itself, as 401 and 403.
+`AuthenticationFailureException` and `AccessDeniedException` are handled by the server
+itself, as 401 and 403. Registering one of their ancestors, `RuntimeException` for
+instance, does not take those answers away; registering something more specific, a
+subclass of `AccessDeniedException`, does hand it to the application.
 
 ### Security defaults
 

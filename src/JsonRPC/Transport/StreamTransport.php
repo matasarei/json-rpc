@@ -71,8 +71,8 @@ final class StreamTransport implements TransportInterface
                 // The stream wrapper has a single timeout covering the whole
                 // transfer, so fall back to the connect timeout when no total
                 // timeout was configured.
-                'timeout' => $this->options->timeout > 0
-                    ? $this->options->timeout
+                'timeout' => $this->options->transferTimeout > 0
+                    ? $this->options->transferTimeout
                     : $this->options->connectTimeout,
                 // See CurlTransport::buildOptions() for why redirects are not followed.
                 'follow_location' => 0,

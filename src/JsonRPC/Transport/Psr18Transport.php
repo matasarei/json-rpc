@@ -24,6 +24,9 @@ final readonly class Psr18Transport implements TransportInterface
 
     private StreamFactoryInterface $streamFactory;
 
+    /**
+     * @throws InvalidArgumentException When a PSR-17 factory is missing
+     */
     public function __construct(
         private ClientInterface $client,
         ?RequestFactoryInterface $requestFactory = null,

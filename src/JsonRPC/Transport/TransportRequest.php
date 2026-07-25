@@ -20,10 +20,11 @@ final readonly class TransportRequest
     ) {
         foreach ($headers as $name => $value) {
             // A line break in a name or a value would let the rest of it be
-            // read as headers of its own once written to the wire.
-            if (preg_match('~[\r\n]~', $name . $value) === 1) {
+            // read as headers of its own once written to the wire, and a null
+            // byte truncates the request the transport builds.
+            if (preg_match('~[\r\n\0]~', $name . $value) === 1) {
                 throw new InvalidArgumentException(
-                    sprintf('The header "%s" contains a line break', $name),
+                    sprintf('The header "%s" contains a line break or a null byte', $name),
                 );
             }
         }

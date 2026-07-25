@@ -69,6 +69,8 @@ final class ProcedureHandler
      * as the class grows a helper.
      *
      * @param list<string> $methods Names of the methods that become procedures
+     *
+     * @throws InvalidArgumentException When a method is magic or does not exist
      */
     public function withObject(object $instance, array $methods): self
     {

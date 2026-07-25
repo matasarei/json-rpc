@@ -89,6 +89,7 @@ final class BatchBuilder
      *
      * @throws BatchFailedException When at least one call failed
      * @throws JsonRpcException
+     * @throws LogicException When the batch was already sent
      */
     public function send(array $headers = []): array
     {

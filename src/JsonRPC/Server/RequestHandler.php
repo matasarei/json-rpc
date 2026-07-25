@@ -16,7 +16,8 @@ use Throwable;
 final readonly class RequestHandler
 {
     /**
-     * @param list<class-string> $localExceptions Exceptions the server handles itself
+     * @param list<class-string> $localExceptions Exceptions this handler leaves to its caller,
+     *        because either the server or the application answers them itself
      */
     public function __construct(
         private ProcedureHandler $procedureHandler,
@@ -29,7 +30,7 @@ final readonly class RequestHandler
     /**
      * @return array<string, mixed>|null The response, or null when nothing has to be answered
      *
-     * @throws Throwable Exceptions the server handles itself
+     * @throws Throwable The exceptions listed as local, for the caller to answer
      */
     public function handle(mixed $payload, ?string $username, ?string $password): ?array
     {

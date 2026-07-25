@@ -85,7 +85,11 @@ final class CookieJar
         foreach ($attributes as $attribute) {
             [$name, $value] = array_pad(explode('=', trim($attribute), 2), 2, '');
 
-            if (strcasecmp(trim($name), 'Max-Age') === 0 && (int) trim($value) <= 0) {
+            $value = trim($value);
+
+            // A Max-Age that is not a number is ignored, as the specification
+            // asks, instead of being read as an expiry.
+            if (strcasecmp(trim($name), 'Max-Age') === 0 && is_numeric($value) && (float) $value <= 0) {
                 return true;
             }
         }

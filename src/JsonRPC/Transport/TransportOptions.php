@@ -11,14 +11,14 @@ final readonly class TransportOptions
 {
     /**
      * @param int $connectTimeout Seconds to wait for the connection to be established
-     * @param int $timeout Seconds allowed for the whole transfer, 0 for no limit
+     * @param int $transferTimeout Seconds allowed for the whole transfer, 0 for no limit
      * @param string|null $caFile Certificate authority bundle used to verify the server
      * @param string|null $localCert Client certificate sent to the server
      * @param array<int|string, mixed> $extraOptions Raw cURL options or stream context overrides
      */
     public function __construct(
         public int $connectTimeout = 5,
-        public int $timeout = 0,
+        public int $transferTimeout = 0,
         public bool $verifySsl = true,
         public ?string $caFile = null,
         public ?string $localCert = null,
@@ -30,7 +30,7 @@ final readonly class TransportOptions
     {
         return new self(
             $seconds,
-            $this->timeout,
+            $this->transferTimeout,
             $this->verifySsl,
             $this->caFile,
             $this->localCert,
@@ -38,7 +38,7 @@ final readonly class TransportOptions
         );
     }
 
-    public function withTimeout(int $seconds): self
+    public function withTransferTimeout(int $seconds): self
     {
         return new self(
             $this->connectTimeout,
@@ -54,7 +54,7 @@ final readonly class TransportOptions
     {
         return new self(
             $this->connectTimeout,
-            $this->timeout,
+            $this->transferTimeout,
             $verify,
             $this->caFile,
             $this->localCert,
@@ -66,7 +66,7 @@ final readonly class TransportOptions
     {
         return new self(
             $this->connectTimeout,
-            $this->timeout,
+            $this->transferTimeout,
             $this->verifySsl,
             $path,
             $this->localCert,
@@ -78,7 +78,7 @@ final readonly class TransportOptions
     {
         return new self(
             $this->connectTimeout,
-            $this->timeout,
+            $this->transferTimeout,
             $this->verifySsl,
             $this->caFile,
             $path,
@@ -93,7 +93,7 @@ final readonly class TransportOptions
     {
         return new self(
             $this->connectTimeout,
-            $this->timeout,
+            $this->transferTimeout,
             $this->verifySsl,
             $this->caFile,
             $this->localCert,
