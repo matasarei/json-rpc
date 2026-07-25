@@ -1,144 +1,67 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Request;
 
 /**
- * Class RequestBuilder
+ * Assembles request payloads.
  *
- * @package JsonRPC\Request
- * @author  Frederic Guillot
+ * Payloads are returned as arrays: a single request is encoded by the client,
+ * a batch is encoded once as a whole.
  */
-class RequestBuilder
+final readonly class RequestBuilder
 {
-    /**
-     * Request ID
-     *
-     * @var mixed
-     */
-    private $id = null;
-
-    /**
-     * Method name
-     *
-     * @var string
-     */
-    private $procedure = '';
-
-    /**
-     * Method arguments
-     *
-     * @var array
-     */
-    private $params = [];
-
-    /**
-     * Additional request attributes
-     *
-     * @var array
-     */
-    private $reqattrs = [];
-
-    /**
-     * Build the request as a notification (no id member)
-     *
-     * @var bool
-     */
-    private $isNotification = false;
-
-    /**
-     * Get new object instance
-     *
-     * @return RequestBuilder
-     */
-    public static function create()
+    public function __construct(private IdGeneratorInterface $idGenerator = new RandomIdGenerator())
     {
-        return new static();
     }
 
     /**
-     * Set id
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes Extra members added to the payload
+     * @param int|string|null $id Identifier of the request, generated when null
      *
-     * @param  null $id
-     *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withId($id)
+    public function build(string $procedure, array $params = [], array $attributes = [], int|string|null $id = null): array
     {
-        $this->id = $id;
-        return $this;
+        return $this->payload($procedure, $params, $attributes, $id ?? $this->idGenerator->generate());
     }
 
     /**
-     * Set method
+     * Build a notification: without an id member, the server must not answer.
      *
-     * @param  string $procedure
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes
      *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withProcedure($procedure)
+    public function buildNotification(string $procedure, array $params = [], array $attributes = []): array
     {
-        $this->procedure = $procedure;
-        return $this;
+        return $this->payload($procedure, $params, $attributes, null);
     }
 
     /**
-     * Set parameters
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes
      *
-     * @param  array $params
-     *
-     * @return RequestBuilder
+     * @return array<string, mixed>
      */
-    public function withParams(array $params)
+    private function payload(string $procedure, array $params, array $attributes, int|string|null $id): array
     {
-        $this->params = $params;
-        return $this;
-    }
-
-    /**
-     * Set additional request attributes
-     *
-     * @param  array $reqattrs
-     *
-     * @return RequestBuilder
-     */
-    public function withRequestAttributes(array $reqattrs)
-    {
-        $this->reqattrs = $reqattrs;
-        return $this;
-    }
-
-    /**
-     * Build the request as a notification: the id member is omitted
-     * and the server will not send a response
-     *
-     * @return RequestBuilder
-     */
-    public function asNotification()
-    {
-        $this->isNotification = true;
-        return $this;
-    }
-
-    /**
-     * Build the payload
-     *
-     * @return string
-     */
-    public function build()
-    {
-        $payload = array_merge_recursive($this->reqattrs, [
+        $payload = array_merge($attributes, [
             'jsonrpc' => '2.0',
-            'method' => $this->procedure,
+            'method' => $procedure,
         ]);
 
-        if (! $this->isNotification) {
-            $payload['id'] = $this->id ?? mt_rand();
+        if ($id !== null) {
+            $payload['id'] = $id;
         }
 
-        if (! empty($this->params)) {
-            $payload['params'] = $this->params;
+        if ($params !== []) {
+            $payload['params'] = $params;
         }
 
-        return json_encode($payload);
+        return $payload;
     }
 }

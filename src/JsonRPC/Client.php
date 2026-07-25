@@ -1,104 +1,64 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
-use Exception;
+use JsonRPC\Client\BatchBuilder;
+use JsonRPC\Exception\JsonRpcException;
+use JsonRPC\Request\IdGeneratorInterface;
+use JsonRPC\Request\RandomIdGenerator;
 use JsonRPC\Request\RequestBuilder;
 use JsonRPC\Response\ResponseParser;
 
 /**
- * JsonRPC client class
+ * Calls procedures on a JSON-RPC 2.0 server.
  *
- * @package JsonRPC
- * @author  Frederic Guillot
+ * Procedures can be called by name through the magic call syntax:
+ *
+ *     $client = new Client('https://example.com/rpc');
+ *     $client->addition(3, 4);
  */
-class Client
+final class Client
 {
     /**
-     * If the only argument passed to a function is an array
-     * assume it contains named arguments
-     *
-     * @var boolean
+     * When the only argument of a magic call is an array, it is assumed to
+     * contain named arguments.
      */
-    private $isNamedArguments = true;
+    private bool $namedArguments = true;
 
-    /**
-     * Do not immediately throw an exception on error. Return it instead.
-     *
-     * @var boolean
-     */
-    private $returnException = false;
+    private readonly HttpClient $httpClient;
 
-    /**
-     * True for a batch request
-     *
-     * @var boolean
-     */
-    private $isBatch = false;
+    private readonly RequestBuilder $requestBuilder;
 
-    /**
-     * Batch payload
-     *
-     * @var array
-     */
-    private $batch = [];
+    private readonly ResponseParser $responseParser;
 
-    /**
-     * Number of batched requests expecting a response (non-notifications)
-     *
-     * @var integer
-     */
-    private $batchCallCount = 0;
-
-    /**
-     * Http Client
-     *
-     * @var HttpClient
-     */
-    private $httpClient;
-
-    /**
-     * @param string $url Server URL
-     * @param bool $returnException Return exceptions
-     * @param HttpClient|null $httpClient HTTP client object
-     */
-    public function __construct($url = '', $returnException = false, ?HttpClient $httpClient = null)
-    {
-        $this->httpClient = $httpClient ?: new HttpClient($url);
-        $this->returnException = $returnException;
+    public function __construct(
+        string $url = '',
+        ?HttpClient $httpClient = null,
+        IdGeneratorInterface $idGenerator = new RandomIdGenerator(),
+    ) {
+        $this->httpClient = $httpClient ?? new HttpClient($url);
+        $this->requestBuilder = new RequestBuilder($idGenerator);
+        $this->responseParser = new ResponseParser();
     }
 
     /**
-     * Arguments passed are always positional
-     *
-     * @return $this
+     * Pass the arguments of magic calls as positional arguments.
      */
-    public function withPositionalArguments()
+    public function withPositionalArguments(): self
     {
-        $this->isNamedArguments = false;
+        $this->namedArguments = false;
 
         return $this;
     }
 
-    /**
-     * Get HTTP Client
-     *
-     * @return HttpClient
-     */
-    public function getHttpClient()
+    public function getHttpClient(): HttpClient
     {
         return $this->httpClient;
     }
 
-    /**
-     * Set username and password
-     *
-     * @param  string $username
-     * @param  string $password
-     *
-     * @return $this
-     */
-    public function authentication($username, $password)
+    public function authentication(string $username, string $password): self
     {
         $this->httpClient
             ->withUsername($username)
@@ -108,18 +68,13 @@ class Client
     }
 
     /**
-     * Automatic mapping of procedures
+     * @param array<array-key, mixed> $params
      *
-     * @param  string   $method   Procedure name
-     * @param  array    $params   Procedure arguments
-     *
-     * @return Exception|Client
-     *
-     * @throws Exception
+     * @throws JsonRpcException
      */
-    public function __call($method, array $params)
+    public function __call(string $method, array $params): mixed
     {
-        if ($this->isNamedArguments && count($params) === 1 && is_array($params[0])) {
+        if ($this->namedArguments && count($params) === 1 && is_array($params[0])) {
             $params = $params[0];
         }
 
@@ -127,121 +82,64 @@ class Client
     }
 
     /**
-     * Start a batch request
+     * Call a procedure and return its result.
      *
-     * @return Client
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes Extra members added to the payload
+     * @param int|string|null $requestId Identifier of the request, generated when null
+     * @param array<string, string> $headers Additional headers for this request
+     *
+     * @throws JsonRpcException
      */
-    public function batch()
-    {
-        $this->isBatch = true;
-        $this->batch = [];
-        $this->batchCallCount = 0;
+    public function execute(
+        string $procedure,
+        array $params = [],
+        array $attributes = [],
+        int|string|null $requestId = null,
+        array $headers = [],
+    ): mixed {
+        $payload = $this->requestBuilder->build($procedure, $params, $attributes, $requestId);
 
-        return $this;
+        return $this->responseParser->parse($this->send($payload, $headers));
     }
 
     /**
-     * Send a batch request
+     * Call a procedure without asking for a result.
      *
-     * @return Exception|Client
+     * @param array<array-key, mixed> $params
+     * @param array<string, mixed> $attributes
+     * @param array<string, string> $headers
      *
-     * @throws Exception
+     * @throws JsonRpcException
      */
-    public function send()
-    {
-        $this->isBatch = false;
-        $payload = '[' . implode(', ', $this->batch) . ']';
-
-        if ($this->batchCallCount === 0) {
-            // Batch of notifications only: the server does not reply
-            $this->httpClient->execute($payload);
-
-            return null;
-        }
-
-        return $this->sendPayload($payload);
+    public function notify(
+        string $procedure,
+        array $params = [],
+        array $attributes = [],
+        array $headers = [],
+    ): void {
+        $this->send($this->requestBuilder->buildNotification($procedure, $params, $attributes), $headers);
     }
 
     /**
-     * Execute a procedure
-     *
-     * @param  string      $procedure Procedure name
-     * @param  array       $params    Procedure arguments
-     * @param  array       $reqattrs
-     * @param  string|null $requestId Request Id
-     * @param  string[]    $headers   Headers for this request
-     *
-     * @return $this|Exception|Client
-     *
-     * @throws Exception
+     * Start a batch of calls sent as a single request.
      */
-    public function execute($procedure, array $params = [], array $reqattrs = [], $requestId = null, array $headers = [])
+    public function batch(): BatchBuilder
     {
-        $payload = RequestBuilder::create()
-            ->withProcedure($procedure)
-            ->withParams($params)
-            ->withRequestAttributes($reqattrs)
-            ->withId($requestId)
-            ->build();
-
-        if ($this->isBatch) {
-            $this->batch[] = $payload;
-            $this->batchCallCount++;
-
-            return $this;
-        }
-
-        return $this->sendPayload($payload, $headers);
+        return new BatchBuilder(
+            $this->httpClient,
+            $this->requestBuilder,
+            $this->responseParser,
+            $this->namedArguments,
+        );
     }
 
     /**
-     * Send a notification: a request without an id member,
-     * for which the server must not reply
-     *
-     * @param  string   $procedure Procedure name
-     * @param  array    $params    Procedure arguments
-     * @param  array    $reqattrs
-     * @param  string[] $headers   Headers for this request
-     *
-     * @return $this|null
-     *
-     * @throws Exception
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $headers
      */
-    public function notify($procedure, array $params = [], array $reqattrs = [], array $headers = [])
+    private function send(array $payload, array $headers): mixed
     {
-        $payload = RequestBuilder::create()
-            ->withProcedure($procedure)
-            ->withParams($params)
-            ->withRequestAttributes($reqattrs)
-            ->asNotification()
-            ->build();
-
-        if ($this->isBatch) {
-            $this->batch[] = $payload;
-
-            return $this;
-        }
-
-        $this->httpClient->execute($payload, $headers);
-
-        return null;
-    }
-
-    /**
-     * Send payload
-     *
-     * @param  string   $payload
-     * @param  string[] $headers
-     *
-     * @return Exception|Client
-     *
-     * @throws Exception
-     */
-    private function sendPayload($payload, array $headers = [])
-    {
-        return ResponseParser::create()
-            ->withReturnException($this->returnException)
-            ->withPayload($this->httpClient->execute($payload, $headers))
-            ->parse();
+        return $this->httpClient->execute(json_encode($payload, JSON_THROW_ON_ERROR), $headers);
     }
 }
