@@ -257,6 +257,8 @@ final class Server
 
         // Responses of a batch are encoded one by one, so that a single result
         // that cannot be encoded does not take the whole batch down with it.
+        // An access failure is not a per-response error: like the same exception
+        // thrown by a procedure, it answers the whole batch with a status code.
         if (array_is_list($payload)) {
             $responses = [];
 

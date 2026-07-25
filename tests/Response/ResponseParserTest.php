@@ -28,9 +28,43 @@ final class ResponseParserTest extends TestCase
         $this->assertSame('foobar', $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'foobar', 'id' => 1]));
     }
 
-    public function testReturnsNullWhenThereIsNoResultMember(): void
+    public function testReturnsANullResult(): void
     {
-        $this->assertNull($this->parser->parse(['jsonrpc' => '2.0', 'id' => 1]));
+        $this->assertNull($this->parser->parse(['jsonrpc' => '2.0', 'result' => null, 'id' => 1]));
+    }
+
+    public function testRejectsAnAnswerWithNeitherAResultNorAnError(): void
+    {
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('neither a result nor an error member');
+
+        $this->parser->parse(['status' => 'maintenance', 'retry_after' => 30]);
+    }
+
+    public function testRejectsAnAnswerCarryingAnotherRequestId(): void
+    {
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('The response does not answer the request with id 1');
+
+        $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'other', 'id' => 2], 1);
+    }
+
+    public function testAcceptsAnAnswerWhoseIdOnlyMatchesLoosely(): void
+    {
+        $this->assertSame('ok', $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => '1'], 1));
+        $this->assertSame('ok', $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1.0], 1));
+    }
+
+    public function testAcceptsAnAnswerWithoutAnIdSuchAsAProtocolError(): void
+    {
+        $this->assertSame('ok', $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => null], 1));
+    }
+
+    public function testRejectsAnAnswerWhoseIdIsNotUsable(): void
+    {
+        $this->expectException(ResponseException::class);
+
+        $this->parser->parse(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => ['nested']], 1);
     }
 
     public function testRejectsAnythingThatIsNotAnArray(): void

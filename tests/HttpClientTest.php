@@ -217,7 +217,6 @@ final class HttpClientTest extends TestCase
             [401, AccessDeniedException::class],
             [403, AccessDeniedException::class],
             [404, ConnectionFailureException::class],
-            [500, ServerErrorException::class],
         ];
     }
 
@@ -233,6 +232,46 @@ final class HttpClientTest extends TestCase
         $this->expectExceptionMessage(sprintf('Response with status code %d', $statusCode));
 
         $client->execute('{}');
+    }
+
+    public function testReportsAServerErrorThatCarriesSomethingOtherThanAnAnswer(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('<h1>Server Error</h1>', 500));
+
+        $this->expectException(ServerErrorException::class);
+        $this->expectExceptionMessage('Response with status code 500');
+
+        $client->execute('{}');
+    }
+
+    public function testRelaysTheErrorObjectOfAServerAnsweringWith500(): void
+    {
+        $payload = ['jsonrpc' => '2.0', 'error' => ['code' => -32000, 'message' => 'Application error'], 'id' => 1];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 500));
+
+        $this->assertSame($payload, $client->execute('{}'));
+    }
+
+    public function testReportsABodyEncodedWithSomethingItCannotDecode(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(
+            200,
+            (string) gzencode('{"jsonrpc":"2.0","result":"pong","id":1}'),
+            ['content-encoding' => ['gzip']],
+        ));
+        $client = new HttpClient('https://example.com/rpc', $transport);
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('encoded with "gzip", which this client does not decode');
+
+        $client->execute('{}');
+    }
+
+    public function testAcceptsABodyDeclaredAsIdentityEncoded(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(200, '{"result":1}', ['content-encoding' => ['identity']]));
+
+        $this->assertSame(['result' => 1], (new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
     }
 
     public function testReportsRedirectsBecauseTheyAreNeverFollowed(): void

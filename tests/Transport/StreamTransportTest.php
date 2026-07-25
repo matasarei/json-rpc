@@ -72,6 +72,16 @@ final class StreamTransportTest extends TestCase
         $transport->send(new TransportRequest('http://127.0.0.1:1/rpc', ''));
     }
 
+    public function testReportsABodyShorterThanItsAnnouncedLength(): void
+    {
+        $transport = new StreamTransport();
+
+        $this->expectException(ConnectionFailureException::class);
+        $this->expectExceptionMessage('The response ended with 500 bytes missing');
+
+        $transport->send(new TransportRequest(self::$server->url('/truncated'), ''));
+    }
+
     public function testReportsAnUnusableUrlWithoutLeavingItsErrorHandlerBehind(): void
     {
         $handler = static fn(): bool => true;

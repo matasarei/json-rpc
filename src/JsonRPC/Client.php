@@ -99,8 +99,10 @@ final class Client
         array $headers = [],
     ): mixed {
         $payload = $this->requestBuilder->build($procedure, $params, $attributes, $requestId);
+        /** @var int|string $id */
+        $id = $payload['id'];
 
-        return $this->responseParser->parse($this->send($payload, $headers));
+        return $this->responseParser->parse($this->send($payload, $headers), $id);
     }
 
     /**

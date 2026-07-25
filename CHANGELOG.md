@@ -36,8 +36,6 @@ complete v1 to v2 mapping.
 
 ### Changed
 - Requires PHP 8.4, `psr/log` ^3.0, and declares `strict_types=1` everywhere.
-- Secure by default: internal error masking is on, batches are limited to 100 calls,
-  `withObject()` requires an explicit method allowlist, and the server catches `Throwable`.
 - A request made only of notifications is answered with HTTP 204 and an empty body.
 - Status codes and headers are returned as part of the response instead of being emitted
   with `header()` while the server runs.

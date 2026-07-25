@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace JsonRPC\Transport;
 
+use InvalidArgumentException;
+
 /**
  * Cookies collected from responses and sent back on subsequent requests.
  */
@@ -24,18 +26,51 @@ final class CookieJar
 
     /**
      * @param array<string, string> $cookies
+     *
+     * @throws InvalidArgumentException When a cookie would break the request
      */
     public function merge(array $cookies): void
     {
-        $this->cookies = array_merge($this->cookies, $cookies);
+        $this->cookies = array_merge($this->cookies, $this->validated($cookies));
     }
 
     /**
      * @param array<string, string> $cookies
+     *
+     * @throws InvalidArgumentException When a cookie would break the request
      */
     public function replace(array $cookies): void
     {
-        $this->cookies = $cookies;
+        $this->cookies = $this->validated($cookies);
+    }
+
+    /**
+     * @param array<string, string> $cookies
+     *
+     * @return array<string, string>
+     *
+     * @throws InvalidArgumentException
+     */
+    private function validated(array $cookies): array
+    {
+        foreach ($cookies as $name => $value) {
+            if (!$this->isSafe($name) || !$this->isSafe($value)) {
+                throw new InvalidArgumentException(
+                    sprintf('The cookie "%s" contains a character that is not allowed in a header', $name),
+                );
+            }
+        }
+
+        return $cookies;
+    }
+
+    /**
+     * A separator or a control character would let a value carry cookies, or
+     * headers, that were never meant to be sent.
+     */
+    private function isSafe(string $value): bool
+    {
+        return preg_match('~[\r\n\0;]~', $value) !== 1;
     }
 
     /**
@@ -65,8 +100,15 @@ final class CookieJar
 
             $value = trim(substr($pair, $separator + 1), " \t\r\n");
 
-            // An empty value or "Max-Age=0" is how a server deletes a cookie;
-            // keeping it would send a stale session back on the next request.
+            // The server does not get to put a control character in a header
+            // this client will send back on every later request.
+            if (!$this->isSafe($name) || !$this->isSafe($value)) {
+                continue;
+            }
+
+            // An empty value, "Max-Age=0" or a past "Expires" is how a server
+            // deletes a cookie; keeping it would send a stale session back on
+            // the next request.
             if ($value === '' || $this->isExpired($attributes)) {
                 unset($this->cookies[$name]);
 
@@ -82,19 +124,32 @@ final class CookieJar
      */
     private function isExpired(array $attributes): bool
     {
+        $expires = null;
+
         foreach ($attributes as $attribute) {
             [$name, $value] = array_pad(explode('=', trim($attribute), 2), 2, '');
-
+            $name = trim($name);
             $value = trim($value);
 
-            // A Max-Age that is not a number is ignored, as the specification
-            // asks, instead of being read as an expiry.
-            if (strcasecmp(trim($name), 'Max-Age') === 0 && is_numeric($value) && (float) $value <= 0) {
-                return true;
+            // Max-Age wins over Expires, and one that is not a number is
+            // ignored, as the specification asks, instead of being read as an
+            // expiry of its own.
+            if (strcasecmp($name, 'Max-Age') === 0 && is_numeric($value)) {
+                return (float) $value <= 0;
+            }
+
+            if (strcasecmp($name, 'Expires') === 0) {
+                $expires = $value;
             }
         }
 
-        return false;
+        if ($expires === null) {
+            return false;
+        }
+
+        $expiresAt = strtotime($expires);
+
+        return $expiresAt !== false && $expiresAt <= time();
     }
 
     public function isEmpty(): bool

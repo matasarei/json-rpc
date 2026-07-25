@@ -77,6 +77,16 @@ final class CurlTransportTest extends TestCase
         $transport->send(new TransportRequest('http://127.0.0.1:1/rpc', ''));
     }
 
+    public function testReportsAnUnusableUrlAsAConnectionFailure(): void
+    {
+        $transport = new CurlTransport();
+
+        $this->expectException(ConnectionFailureException::class);
+        $this->expectExceptionMessage('Unable to establish a connection');
+
+        $transport->send(new TransportRequest("http://127.0.0.1/r\0pc", ''));
+    }
+
     public function testReportsATimeoutWithItsOwnMessage(): void
     {
         $transport = new CurlTransport(new TransportOptions(transferTimeout: 1));
@@ -97,7 +107,8 @@ final class CurlTransportTest extends TestCase
         $this->assertTrue($options[CURLOPT_RETURNTRANSFER]);
         $this->assertTrue($options[CURLOPT_POST]);
         $this->assertSame('payload', $options[CURLOPT_POSTFIELDS]);
-        $this->assertSame(['Accept: application/json'], $options[CURLOPT_HTTPHEADER]);
+        // "Expect:" removes the 100-continue libcurl would add on its own.
+        $this->assertSame(['Accept: application/json', 'Expect:'], $options[CURLOPT_HTTPHEADER]);
         $this->assertSame(5, $options[CURLOPT_CONNECTTIMEOUT]);
         $this->assertSame(0, $options[CURLOPT_TIMEOUT]);
         $this->assertFalse($options[CURLOPT_FOLLOWLOCATION]);
@@ -125,6 +136,15 @@ final class CurlTransportTest extends TestCase
         $this->assertSame(0, $options[CURLOPT_SSL_VERIFYHOST]);
         $this->assertSame('/ca.pem', $options[CURLOPT_CAINFO]);
         $this->assertSame('/client.pem', $options[CURLOPT_SSLCERT]);
+    }
+
+    public function testKeepsAnExpectHeaderTheCallerAskedFor(): void
+    {
+        $options = (new CurlTransport())->buildOptions(
+            new TransportRequest('https://example.com/rpc', '', ['expect' => '100-continue']),
+        );
+
+        $this->assertSame(['expect: 100-continue'], $options[CURLOPT_HTTPHEADER]);
     }
 
     public function testExtraOptionsWinOverTheDefaults(): void
