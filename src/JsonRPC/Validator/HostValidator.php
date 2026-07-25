@@ -1,95 +1,98 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Validator;
 
 use JsonRPC\Exception\AccessDeniedException;
 
 /**
- * Class HostValidator
+ * Restricts which clients may reach the server, by address or CIDR range.
  *
- * @package JsonRPC\Validator
- * @author  Frederic Guillot
+ * Anything that cannot be parsed is treated as "no match", so a malformed entry
+ * never widens the allowed set.
  */
-class HostValidator
+final readonly class HostValidator
 {
     /**
-     * Validate
-     *
-     * @param  array  $hosts
-     * @param  string $remoteAddress
+     * @param list<string> $hosts Addresses and CIDR ranges, IPv4 or IPv6
      *
      * @throws AccessDeniedException
      */
-    public static function validate(array $hosts, $remoteAddress)
+    public function validate(array $hosts, ?string $remoteAddress): void
     {
-        if (!empty($hosts)) {
-            foreach ($hosts as $host) {
-                if (self::ipMatch($remoteAddress, $host)) {
-                    return;
-                }
-            }
-            throw new AccessDeniedException('Access Forbidden');
+        if ($hosts === []) {
+            return;
+        }
+
+        if ($remoteAddress === null || !$this->isAllowed($hosts, $remoteAddress)) {
+            throw new AccessDeniedException('Access denied');
         }
     }
 
     /**
-     * Validate remoteAddress match host
-     *
-     * @param $remoteAddress
-     * @param $host
-     *
-     * @return bool
+     * @param list<string> $hosts
      */
-    public static function ipMatch($remoteAddress, $host)
+    private function isAllowed(array $hosts, string $remoteAddress): bool
     {
-        $host = trim($host);
-        if (strpos($host, '/') !== false) {
-            list($network, $mask) = explode('/', $host, 2);
-            if (self::netMatch($remoteAddress, $network, $mask)) {
+        foreach ($hosts as $host) {
+            if ($this->matches(trim($host), $remoteAddress)) {
                 return true;
             }
-        }
-
-        if ($host === $remoteAddress) {
-            return true;
         }
 
         return false;
     }
 
-    /**
-     * validate the ipAddress in network
-     *
-     * Only IPv4 CIDR ranges are supported. Any malformed input (non-IPv4
-     * address, out-of-range or non-numeric mask) fails closed (returns false).
-     *
-     * @param string $clientIp
-     * @param string $networkIp
-     * @param string $mask
-     *
-     * @return bool
-     */
-    public static function netMatch($clientIp, $networkIp, $mask)
+    private function matches(string $host, string $remoteAddress): bool
     {
-        $client = ip2long($clientIp);
-        $network = ip2long($networkIp);
+        if (!str_contains($host, '/')) {
+            return $host === $remoteAddress;
+        }
 
-        if ($client === false || $network === false || ! is_numeric($mask)) {
+        [$network, $prefix] = explode('/', $host, 2);
+
+        return $this->isInNetwork($remoteAddress, $network, $prefix);
+    }
+
+    private function isInNetwork(string $address, string $network, string $prefix): bool
+    {
+        $addressBytes = inet_pton($address);
+        $networkBytes = inet_pton($network);
+
+        if ($addressBytes === false || $networkBytes === false) {
             return false;
         }
 
-        $mask = (int) $mask;
-
-        if ($mask < 0 || $mask > 32) {
+        // An IPv4 client never belongs to an IPv6 range, and the other way round.
+        if (strlen($addressBytes) !== strlen($networkBytes)) {
             return false;
         }
 
-        if ($mask === 0) {
+        if (!ctype_digit($prefix)) {
+            return false;
+        }
+
+        $bits = (int) $prefix;
+
+        if ($bits > strlen($addressBytes) * 8) {
+            return false;
+        }
+
+        $wholeBytes = intdiv($bits, 8);
+
+        if (strncmp($addressBytes, $networkBytes, $wholeBytes) !== 0) {
+            return false;
+        }
+
+        $remainingBits = $bits % 8;
+
+        if ($remainingBits === 0) {
             return true;
         }
 
-        $shift = 32 - $mask;
+        $mask = ~((1 << (8 - $remainingBits)) - 1) & 0xFF;
 
-        return ($client >> $shift) === ($network >> $shift);
+        return (ord($addressBytes[$wholeBytes]) & $mask) === (ord($networkBytes[$wholeBytes]) & $mask);
     }
 }

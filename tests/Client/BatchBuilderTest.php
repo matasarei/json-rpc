@@ -43,11 +43,23 @@ final class BatchBuilderTest extends TestCase
         );
     }
 
+    /**
+     * Calls a procedure the way a user would, with the name as a method.
+     */
+    private function magicCall(BatchBuilder $batch, string $procedure, mixed ...$arguments): BatchBuilder
+    {
+        $result = $batch->{$procedure}(...$arguments);
+
+        $this->assertInstanceOf(BatchBuilder::class, $result);
+
+        return $result;
+    }
+
     public function testSupportsMagicCalls(): void
     {
         $transport = FakeTransport::withJson([['jsonrpc' => '2.0', 'result' => 'a', 'id' => 1]]);
 
-        $results = $this->client($transport)->batch()->methodA(['x' => 'y'])->send();
+        $results = $this->magicCall($this->client($transport)->batch(), 'methodA', ['x' => 'y'])->send();
 
         $this->assertSame(['a'], $results);
         $this->assertStringContainsString('"params":{"x":"y"}', $transport->lastRequest()->body);
@@ -57,7 +69,7 @@ final class BatchBuilderTest extends TestCase
     {
         $transport = FakeTransport::withJson([['jsonrpc' => '2.0', 'result' => 'a', 'id' => 1]]);
 
-        $this->client($transport)->batch()->methodA(3, 4)->send();
+        $this->magicCall($this->client($transport)->batch(), 'methodA', 3, 4)->send();
 
         $this->assertStringContainsString('"params":[3,4]', $transport->lastRequest()->body);
     }
