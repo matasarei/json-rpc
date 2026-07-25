@@ -1,12 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
 /**
- * Class AuthenticationFailureException
- *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * Credentials are missing or wrong.
  */
 class AuthenticationFailureException extends RpcCallFailedException
 {
