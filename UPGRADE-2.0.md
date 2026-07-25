@@ -32,6 +32,13 @@ Requirements
 Every file declares `strict_types=1`, so arguments are no longer coerced: passing `"5"`
 where an `int` is declared now raises a `TypeError`.
 
+Every class except the exceptions is `final`. Subclassing was possible in 1.x, in
+particular the `protected` methods of `HttpClient` (`buildContext()`, `parseCookies()`,
+`isCurlLoaded()`, `redactHeaders()`, `buildHeaders()`). What subclassing was used for is
+now covered by injection: a custom `TransportInterface` for the wire format, a
+`CookieJar`, a PSR-3 logger, and `withBeforeRequestCallback()` for the request itself.
+The exception classes stay open on purpose.
+
 Server bootstrap
 ----------------
 
@@ -63,8 +70,9 @@ $server->execute(ServerRequest::fromString($jsonString, $serverVariables));
 ```
 
 `ServerResponse` exposes `body`, `statusCode` and `headers`; `send()` writes them out.
-This is also the fix for a 1.x bug: 401 and 403 headers were set on internal response
-builders that were thrown away, so they never reached the client.
+In 1.x the status line and the headers were emitted as a side effect of `execute()`,
+through `header()`. They are now part of the value it returns, which is what makes the
+server usable inside a framework and testable without intercepting `header()`.
 
 Server inside a framework
 -------------------------
@@ -102,6 +110,9 @@ $server->getProcedureHandler()->withInstanceFactory($container->get(...));
 
 `setAuthenticationHeader()` is now `withAuthenticationHeader()`, and is read when the
 request is handled instead of when it is configured.
+
+`Server::getUsername()` and `getPassword()` are gone; the credentials of a request come
+from `ServerRequest::credentials()`, and middleware receives them as arguments.
 
 Middleware
 ----------
@@ -163,8 +174,10 @@ What changed underneath:
 try {
     $results = $client->batch()->add(4, 3)->missing()->send();
 } catch (BatchFailedException $e) {
-    $e->getResults(); // results of the calls that succeeded, keyed by call position
-    $e->getErrors();  // exceptions of the calls that failed, keyed by call position
+    $e->getResults(); // results of the calls that succeeded
+    $e->getErrors();  // exceptions of the calls that failed
+    // both keyed by the position of the call among those that expect an answer,
+    // which is the same key the results array uses
 }
 ```
 
@@ -244,3 +257,11 @@ Removed classes
 `HostValidator` and `UserValidator` are still there but are instance classes with instance
 methods, not static utilities. All the `static create()` factories are gone: construct the
 objects.
+
+Two classes kept their name but not their API, because they are building blocks the client
+uses rather than things most applications call directly:
+
+| Class | 1.x | 2.0 |
+|---|---|---|
+| `Request\RequestBuilder` | `create()->withProcedure()->withParams()->withId()->withRequestAttributes()->asNotification()->build()`, returning a JSON string | `build($procedure, $params, $attributes, $id)` and `buildNotification($procedure, $params, $attributes)`, returning arrays |
+| `Response\ResponseParser` | `create()->withReturnException()->withPayload()->parse()` | `parse($payload)` and `parseBatch($payload, $expectedIds)` |

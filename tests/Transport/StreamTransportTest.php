@@ -72,6 +72,26 @@ final class StreamTransportTest extends TestCase
         $transport->send(new TransportRequest('http://127.0.0.1:1/rpc', ''));
     }
 
+    public function testReportsAnUnusableUrlWithoutLeavingItsErrorHandlerBehind(): void
+    {
+        $handler = static fn(): bool => true;
+        set_error_handler($handler);
+
+        try {
+            (new StreamTransport())->send(new TransportRequest('', ''));
+            $this->fail('An exception should have been thrown');
+        } catch (ConnectionFailureException $exception) {
+            $this->assertStringContainsString('Unable to establish a connection', $exception->getMessage());
+            // The handler on top of the stack has to be the one installed here,
+            // otherwise the transport left its own behind and the application
+            // stops seeing its own errors.
+            $this->assertSame($handler, set_error_handler(null));
+            restore_error_handler();
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testBuildsTheDefaultContextOptions(): void
     {
         $options = (new StreamTransport())->buildContextOptions(

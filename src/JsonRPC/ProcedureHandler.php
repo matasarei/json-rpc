@@ -92,8 +92,8 @@ final class ProcedureHandler
     }
 
     /**
-     * Method called on the object before the procedure itself, with the
-     * procedure name as argument.
+     * Method called on the object before the procedure itself, with the name of
+     * the method about to run as argument.
      */
     public function withBeforeMethod(string $methodName): self
     {

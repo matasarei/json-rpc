@@ -150,12 +150,51 @@ final class ResponseParserTest extends TestCase
         $this->assertSame([0 => 'ok'], $parsed['results']);
     }
 
-    public function testRejectsABatchAnswerThatIsNotAList(): void
+    public function testReportsAnErrorTheServerRaisedForTheWholeBatch(): void
+    {
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('Invalid Request: Invalid Request');
+
+        $this->parser->parseBatch(
+            ['jsonrpc' => '2.0', 'error' => ['code' => -32600, 'message' => 'Invalid Request'], 'id' => null],
+            [1, 2],
+        );
+    }
+
+    public function testRejectsABatchAnswerThatIsNeitherAListNorAnError(): void
     {
         $this->expectException(InvalidJsonFormatException::class);
         $this->expectExceptionMessage('Malformed payload');
 
         $this->parser->parseBatch(['jsonrpc' => '2.0', 'result' => 'not a batch', 'id' => 1], [1]);
+    }
+
+    public function testMatchesAnAnswerWhoseIdDecodedAsAFloat(): void
+    {
+        $parsed = $this->parser->parseBatch([['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1.0]], [1]);
+
+        $this->assertSame([0 => 'ok'], $parsed['results']);
+    }
+
+    public function testDoesNotHandTheSameAnswerToTwoCallsWithLookAlikeIds(): void
+    {
+        $parsed = $this->parser->parseBatch(
+            [
+                ['jsonrpc' => '2.0', 'result' => 'from-int', 'id' => 1],
+                ['jsonrpc' => '2.0', 'result' => 'from-string', 'id' => '1'],
+            ],
+            [1, '1'],
+        );
+
+        $this->assertSame([0 => 'from-int', 1 => 'from-string'], $parsed['results']);
+    }
+
+    public function testRejectsASingleAnswerThatIsABatch(): void
+    {
+        $this->expectException(InvalidJsonRpcFormatException::class);
+        $this->expectExceptionMessage('Expected a single response but got a batch');
+
+        $this->parser->parse([['jsonrpc' => '2.0', 'result' => 'the-answer', 'id' => 1]]);
     }
 
     public function testRejectsABatchAnswerThatIsNotAnArray(): void

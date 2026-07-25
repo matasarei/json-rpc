@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JsonRPC\Tests\Request;
 
+use JsonRPC\Exception\RpcCallFailedException;
 use JsonRPC\Request\RequestBuilder;
 use JsonRPC\Tests\Doubles\SequentialIdGenerator;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -66,6 +67,19 @@ final class RequestBuilderTest extends TestCase
 
         $this->assertSame(['auth' => 'token', 'jsonrpc' => '2.0', 'method' => 'sum', 'params' => [1, 2]], $payload);
         $this->assertArrayNotHasKey('id', $payload);
+    }
+
+    public function testEncodesAPayload(): void
+    {
+        $this->assertSame('{"jsonrpc":"2.0","method":"sum"}', RequestBuilder::encode(['jsonrpc' => '2.0', 'method' => 'sum']));
+    }
+
+    public function testReportsAPayloadThatCannotBeEncodedAsALibraryException(): void
+    {
+        $this->expectException(RpcCallFailedException::class);
+        $this->expectExceptionMessage('The request cannot be encoded');
+
+        RequestBuilder::encode(['params' => [NAN]]);
     }
 
     public function testGeneratesRandomIdsByDefault(): void

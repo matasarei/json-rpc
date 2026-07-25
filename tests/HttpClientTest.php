@@ -62,6 +62,46 @@ final class HttpClientTest extends TestCase
         $this->assertSame('application/vnd.custom', $headers['Accept']);
     }
 
+    public function testACallerHeaderReplacesADefaultThatOnlyDiffersInCase(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(200, '{}'), new TransportResponse(200, '{}'));
+        $client = new HttpClient('https://example.com/rpc', $transport);
+
+        $client->execute('{}', ['content-type' => 'application/json-rpc']);
+        $headers = $transport->lastRequest()->headers;
+        $this->assertSame(['content-type' => 'application/json-rpc'], array_filter(
+            $headers,
+            static fn(string $name): bool => strcasecmp($name, 'Content-Type') === 0,
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        $client->withHeaders(['ACCEPT' => 'application/vnd.custom+json'])->execute('{}');
+        $headers = $transport->lastRequest()->headers;
+        $this->assertSame(['ACCEPT' => 'application/vnd.custom+json'], array_filter(
+            $headers,
+            static fn(string $name): bool => strcasecmp($name, 'Accept') === 0,
+            ARRAY_FILTER_USE_KEY,
+        ));
+    }
+
+    public function testConnectionSettingsChangedAfterACallReachTheTransport(): void
+    {
+        $factory = new RecordingTransportFactory(new FakeTransport(
+            new TransportResponse(200, '{}'),
+            new TransportResponse(200, '{}'),
+        ));
+        $client = new HttpClient('https://example.com/rpc', null, new CookieJar(), $factory);
+
+        $client->execute('{}');
+        $this->assertSame(5, $factory->usedOptions()->connectTimeout);
+
+        $client->withTimeout(30)->withCaFile('/ca.pem')->execute('{}');
+
+        $this->assertSame(2, $factory->calls);
+        $this->assertSame(30, $factory->usedOptions()->connectTimeout);
+        $this->assertSame('/ca.pem', $factory->usedOptions()->caFile);
+    }
+
     public function testSendsBasicAuthenticationOnlyWhenBothCredentialsAreSet(): void
     {
         $transport = new FakeTransport(
@@ -179,6 +219,27 @@ final class HttpClientTest extends TestCase
 
         $this->expectException(ResponseException::class);
         $this->expectExceptionMessage('Unexpected response with status code 302');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsARedirectEvenWhenItCarriesAJsonBody(): void
+    {
+        $payload = ['jsonrpc' => '2.0', 'result' => 'moved', 'id' => 1];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 302));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 302');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsAnErrorStatusWhoseBodyIsOnlyAJsonScalar(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson('gateway timeout', 504));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 504');
 
         $client->execute('{}');
     }

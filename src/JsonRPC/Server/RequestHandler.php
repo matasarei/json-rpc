@@ -33,8 +33,10 @@ final readonly class RequestHandler
      */
     public function handle(mixed $payload, ?string $username, ?string $password): ?array
     {
-        $id = is_array($payload) ? $payload['id'] ?? null : null;
-        $isNotification = $id === null;
+        // A request carrying "id": null still expects an answer; only a request
+        // without an id member at all is a notification.
+        $isNotification = !is_array($payload) || !array_key_exists('id', $payload);
+        $id = $isNotification ? null : $payload['id'];
 
         try {
             $this->validate($payload);
@@ -106,6 +108,9 @@ final readonly class RequestHandler
             || ($payload['jsonrpc'] ?? null) !== '2.0'
             || !is_string($payload['method'] ?? null)
             || (isset($payload['params']) && !is_array($payload['params']))
+            // The specification allows a String, a Number or NULL as identifier.
+            || (array_key_exists('id', $payload) && !is_scalar($payload['id']) && $payload['id'] !== null)
+            || is_bool($payload['id'] ?? null)
         ) {
             throw new InvalidJsonRpcFormatException('Invalid JSON RPC payload');
         }

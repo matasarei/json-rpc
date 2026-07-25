@@ -49,9 +49,13 @@ The hardening that was opt-in in 1.5 is the default behaviour in 2.0.
   inside a procedure becomes a masked internal error instead of a fatal error and a blank
   response.
 
-- **Redirects are never followed by the client.** A JSON-RPC endpoint is a fixed POST URL;
-  following a redirect would resend the `Authorization` and `Cookie` headers to a location
-  the server operator does not necessarily control. A `3xx` answer is reported as an error.
+- **The built-in transports never follow a redirect.** A JSON-RPC endpoint is a fixed POST
+  URL; following a redirect would resend the `Authorization` and `Cookie` headers to a
+  location the server operator does not necessarily control. A `3xx` answer is reported as
+  an error instead. Two things can change that, and both are yours to decide:
+  `withTransportOptions()` passes raw options to the transport, redirect settings included,
+  and an injected PSR-18 client applies its own policy (Guzzle and symfony/http-client
+  follow redirects by default, so disable that on a client you inject).
 
 - **Credentials are redacted from logs.** `Authorization`, `Cookie`, `Set-Cookie` and
   `Proxy-Authorization` values are replaced by `[redacted]` before anything is handed to a

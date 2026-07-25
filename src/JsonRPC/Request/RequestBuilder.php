@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace JsonRPC\Request;
 
+use JsonException;
+use JsonRPC\Exception\RpcCallFailedException;
+
 /**
  * Assembles request payloads.
  *
@@ -14,6 +17,27 @@ final readonly class RequestBuilder
 {
     public function __construct(private IdGeneratorInterface $idGenerator = new RandomIdGenerator())
     {
+    }
+
+    /**
+     * Encode a payload, reporting what cannot be encoded as a library exception
+     * rather than a bare JsonException.
+     *
+     * @param array<array-key, mixed> $payload
+     *
+     * @throws RpcCallFailedException
+     */
+    public static function encode(array $payload): string
+    {
+        try {
+            return json_encode($payload, JSON_THROW_ON_ERROR);
+        } catch (JsonException $exception) {
+            throw new RpcCallFailedException(
+                'The request cannot be encoded: ' . $exception->getMessage(),
+                0,
+                $exception,
+            );
+        }
     }
 
     /**

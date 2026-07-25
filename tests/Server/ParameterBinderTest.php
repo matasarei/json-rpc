@@ -7,6 +7,7 @@ namespace JsonRPC\Tests\Server;
 use JsonRPC\Exception\InvalidParamsException;
 use JsonRPC\Server\ParameterBinder;
 use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionFunction;
 
@@ -51,6 +52,69 @@ final class ParameterBinderTest extends TestCase
         $signature = $this->signature(fn(int $a = 1): int => $a);
 
         $this->assertSame([], $this->binder->bind($signature, []));
+    }
+
+    public function testAcceptsAsManyArgumentsAsAVariadicProcedureWants(): void
+    {
+        $signature = $this->signature(fn(int ...$numbers): array => $numbers);
+
+        $this->assertSame([1, 2, 3], $this->binder->bind($signature, [1, 2, 3]));
+    }
+
+    public function testAcceptsValuesThatFitTheDeclaredTypes(): void
+    {
+        $signature = $this->signature(
+            fn(int $a, float $b, string $c, bool $d, ?int $e, mixed $f, array $g): bool => true,
+        );
+
+        $arguments = [1, 2.5, 'three', true, null, 'anything', []];
+
+        $this->assertSame($arguments, $this->binder->bind($signature, $arguments));
+    }
+
+    public function testWidensAnIntegerToAFloatLikePhpDoes(): void
+    {
+        $signature = $this->signature(fn(float $a): float => $a);
+
+        $this->assertSame([1], $this->binder->bind($signature, [1]));
+    }
+
+    /**
+     * @return array<string, array{list<mixed>}>
+     */
+    public static function valuesOfTheWrongType(): array
+    {
+        return [
+            'string for int' => [['a', 1.0, 'c', true]],
+            'null for int' => [[null, 1.0, 'c', true]],
+            'string for float' => [[1, 'b', 'c', true]],
+            'int for string' => [[1, 1.0, 3, true]],
+            'int for bool' => [[1, 1.0, 'c', 1]],
+        ];
+    }
+
+    /**
+     * @param list<mixed> $params
+     */
+    #[DataProvider('valuesOfTheWrongType')]
+    public function testRejectsValuesThatDoNotFitADeclaredScalarType(array $params): void
+    {
+        $signature = $this->signature(fn(int $a, float $b, string $c, bool $d): bool => true);
+
+        $this->expectException(InvalidParamsException::class);
+        $this->expectExceptionMessage('Invalid type for argument');
+
+        $this->binder->bind($signature, $params);
+    }
+
+    public function testChecksTypesOfNamedParametersToo(): void
+    {
+        $signature = $this->signature(fn(int $a, int $b = 2): int => $a + $b);
+
+        $this->expectException(InvalidParamsException::class);
+        $this->expectExceptionMessage('Invalid type for argument: a, int expected');
+
+        $this->binder->bind($signature, ['a' => 'not an int']);
     }
 
     public function testRejectsTooFewParameters(): void

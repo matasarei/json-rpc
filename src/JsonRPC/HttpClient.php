@@ -147,7 +147,7 @@ final class HttpClient
      */
     public function withHeaders(array $headers): self
     {
-        $this->headers = array_merge($this->headers, $headers);
+        $this->headers = $this->mergeHeaders($this->headers, $headers);
 
         return $this;
     }
@@ -232,7 +232,10 @@ final class HttpClient
         $this->cookies->store($response->headerValues('Set-Cookie'));
 
         $decoded = $this->decode($response->body);
-        $this->handleStatusCode($response, $decoded !== null);
+
+        // Only an object or an array can be a JSON-RPC answer; a bare JSON
+        // scalar is a gateway speaking for itself, not the server answering.
+        $this->handleStatusCode($response, is_array($decoded));
 
         return $decoded;
     }
@@ -254,6 +257,10 @@ final class HttpClient
             );
         }
 
+        // The transport is built from these options on first use, so it has to
+        // be built again once they change.
+        $this->transport = null;
+
         return $this->options;
     }
 
@@ -264,7 +271,7 @@ final class HttpClient
      */
     private function buildHeaders(array $headers): array
     {
-        $headers = array_merge($this->headers, $headers);
+        $headers = $this->mergeHeaders($this->headers, $headers);
 
         if ($this->username !== null && $this->password !== null) {
             $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
@@ -274,6 +281,31 @@ final class HttpClient
 
         if ($cookies !== null) {
             $headers['Cookie'] = $cookies;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Header names are case insensitive, so a value given by the caller has to
+     * replace a default that only differs in case instead of being sent next
+     * to it.
+     *
+     * @param array<string, string> $headers
+     * @param array<string, string> $overrides
+     *
+     * @return array<string, string>
+     */
+    private function mergeHeaders(array $headers, array $overrides): array
+    {
+        foreach ($overrides as $name => $value) {
+            foreach (array_keys($headers) as $existing) {
+                if (strcasecmp($existing, $name) === 0) {
+                    unset($headers[$existing]);
+                }
+            }
+
+            $headers[$name] = $value;
         }
 
         return $headers;
@@ -313,10 +345,13 @@ final class HttpClient
             throw $exception;
         }
 
-        // A JSON-RPC error object is a valid answer whatever the status code,
-        // but anything else with a redirect or error status has to be reported:
-        // redirects are never followed, so they are terminal.
-        if ($isJsonResponse || $response->statusCode < 300 || $response->statusCode >= 600) {
+        // Redirects are never followed, so a 3xx is terminal whatever it carries.
+        // For the other status codes a JSON-RPC error object is a valid answer.
+        if ($response->statusCode >= 300 && $response->statusCode < 400) {
+            throw new ResponseException(sprintf('Unexpected response with status code %d', $response->statusCode));
+        }
+
+        if ($isJsonResponse || $response->statusCode < 400 || $response->statusCode >= 600) {
             return;
         }
 

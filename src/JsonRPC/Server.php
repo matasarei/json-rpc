@@ -43,14 +43,11 @@ final class Server
     private array $users = [];
 
     /**
-     * Exceptions the server handles itself instead of relaying to the client.
+     * Exceptions the application handles itself, registered with withLocalException().
      *
      * @var list<class-string>
      */
-    private array $localExceptions = [
-        AuthenticationFailureException::class,
-        AccessDeniedException::class,
-    ];
+    private array $localExceptions = [];
 
     private int $batchLimit = 100;
 
@@ -162,21 +159,32 @@ final class Server
             $this->userValidator->validate($this->users, $username, $password);
 
             $payload = $this->dispatch($this->decode($request->body), $username, $password, $errorResponseFactory);
-        } catch (AuthenticationFailureException) {
-            return $this->unauthorized();
-        } catch (AccessDeniedException) {
-            return $this->forbidden();
+
+            // Encoding happens inside the try: a result can still fail to encode,
+            // for instance when a JsonSerializable of the application throws.
+            return $this->respond($payload, $errorResponseFactory);
         } catch (Throwable $exception) {
+            // What the application asked to handle itself wins over everything
+            // else, even when it extends one of the exceptions below.
             foreach ($this->localExceptions as $localException) {
                 if ($exception instanceof $localException) {
                     throw $exception;
                 }
             }
 
-            $payload = ['jsonrpc' => '2.0', 'error' => $errorResponseFactory->create($exception), 'id' => null];
-        }
+            if ($exception instanceof AuthenticationFailureException) {
+                return $this->unauthorized();
+            }
 
-        return $this->respond($payload, $errorResponseFactory);
+            if ($exception instanceof AccessDeniedException) {
+                return $this->forbidden();
+            }
+
+            return $this->respond(
+                ['jsonrpc' => '2.0', 'error' => $errorResponseFactory->create($exception), 'id' => null],
+                $errorResponseFactory,
+            );
+        }
     }
 
     /**
@@ -194,7 +202,13 @@ final class Server
             $this->procedureHandler,
             $this->middlewareHandler,
             $errorResponseFactory,
-            $this->localExceptions,
+            // Authentication and access failures are answered by execute() with
+            // a status code, so they have to leave the handler untouched.
+            [
+                ...$this->localExceptions,
+                AuthenticationFailureException::class,
+                AccessDeniedException::class,
+            ],
         );
 
         if (!is_array($payload) || !array_is_list($payload) || $payload === []) {
@@ -240,14 +254,36 @@ final class Server
             return new ServerResponse('', 204, []);
         }
 
+        // Responses of a batch are encoded one by one, so that a single result
+        // that cannot be encoded does not take the whole batch down with it.
+        if (array_is_list($payload)) {
+            $responses = [];
+
+            foreach ($payload as $response) {
+                $responses[] = $this->encodeResponse($response, $errorResponseFactory);
+            }
+
+            return new ServerResponse('[' . implode(',', $responses) . ']');
+        }
+
+        return new ServerResponse($this->encodeResponse($payload, $errorResponseFactory));
+    }
+
+    private function encodeResponse(mixed $response, ErrorResponseFactory $errorResponseFactory): string
+    {
         try {
-            return new ServerResponse(json_encode($payload, self::ENCODING_OPTIONS));
-        } catch (JsonException $exception) {
+            return json_encode($response, self::ENCODING_OPTIONS);
+        } catch (Throwable $exception) {
+            $id = is_array($response) ? $response['id'] ?? null : null;
             $error = $errorResponseFactory->create(new ResponseEncodingFailureException($exception->getMessage()));
 
-            return new ServerResponse(
-                (string) json_encode(['jsonrpc' => '2.0', 'error' => $error, 'id' => null], JSON_UNESCAPED_SLASHES),
-            );
+            // The error member only ever holds an integer, a string and the
+            // exception message, so this second encoding cannot fail.
+            return (string) json_encode([
+                'jsonrpc' => '2.0',
+                'error' => $error,
+                'id' => is_scalar($id) ? $id : null,
+            ], self::ENCODING_OPTIONS);
         }
     }
 
