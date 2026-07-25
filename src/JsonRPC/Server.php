@@ -359,11 +359,6 @@ class Server
             HostValidator::validate($this->hosts, $this->getServerVariable('REMOTE_ADDR'));
             UserValidator::validate($this->users, $this->getUsername(), $this->getPassword());
 
-            $this->middlewareHandler
-                ->withUsername($this->getUsername())
-                ->withPassword($this->getPassword())
-            ;
-
             $response = $this->parseRequest();
         } catch (Exception $e) {
             $response = $this->handleExceptions($e);
@@ -411,6 +406,7 @@ class Server
                 ->withPayload($this->payload)
                 ->withProcedureHandler($this->procedureHandler)
                 ->withMiddlewareHandler($this->middlewareHandler)
+                ->withCredentials($this->getUsername(), $this->getPassword())
                 ->withLocalException($this->localExceptions)
                 ->withBatchLimit($this->batchLimit)
                 ->withInternalErrorMasking($this->maskInternalErrors)
@@ -421,6 +417,7 @@ class Server
             ->withPayload($this->payload)
             ->withProcedureHandler($this->procedureHandler)
             ->withMiddlewareHandler($this->middlewareHandler)
+            ->withCredentials($this->getUsername(), $this->getPassword())
             ->withLocalException($this->localExceptions)
             ->withInternalErrorMasking($this->maskInternalErrors)
             ->parse();

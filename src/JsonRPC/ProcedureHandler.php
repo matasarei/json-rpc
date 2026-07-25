@@ -1,58 +1,46 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
-use BadFunctionCallException;
 use Closure;
 use InvalidArgumentException;
+use JsonRPC\Exception\InvalidParamsException;
+use JsonRPC\Exception\MethodNotFoundException;
+use JsonRPC\Server\ParameterBinder;
 use ReflectionFunction;
 use ReflectionMethod;
 
 /**
- * Class ProcedureHandler
- *
- * @package JsonRPC
- * @author  Frederic Guillot
+ * The procedures a server exposes, and how a call is dispatched to them.
  */
-class ProcedureHandler
+final class ProcedureHandler
 {
     /**
-     * List of procedures
-     *
-     * @var array
+     * @var array<string, Closure>
      */
-    protected $callbacks = [];
+    private array $callbacks = [];
 
     /**
-     * List of classes
-     *
-     * @var array
+     * @var array<string, array{class-string|object, string}>
      */
-    protected $classes = [];
+    private array $classes = [];
 
     /**
-     * List of instances
-     *
-     * @var array
+     * @var list<array{object, list<string>}>
      */
-    protected $instances = [];
+    private array $instances = [];
 
-    /**
-     * Before method name to call
-     *
-     * @var string
-     */
-    protected $beforeMethodName = '';
+    private string $beforeMethodName = '';
 
-    /**
-     * Register a new procedure
-     *
-     * @param  string   $procedure       Procedure name
-     * @param  closure  $callback        Callback
-     *
-     * @return $this
-     */
-    public function withCallback($procedure, Closure $callback)
+    private ?Closure $instanceFactory = null;
+
+    public function __construct(private readonly ParameterBinder $binder = new ParameterBinder())
+    {
+    }
+
+    public function withCallback(string $procedure, Closure $callback): self
     {
         $this->callbacks[$procedure] = $callback;
 
@@ -60,47 +48,51 @@ class ProcedureHandler
     }
 
     /**
-     * Bind a procedure to a class
-     *
-     * @param  string   $procedure    Procedure name
-     * @param  mixed    $class        Class name or instance
-     * @param  string   $method       Procedure name
-     *
-     * @return $this
+     * @param class-string|object $class Class name, instantiated on call, or an instance
+     * @param string $method Defaults to the procedure name
      */
-    public function withClassAndMethod($procedure, $class, $method = '')
+    public function withClassAndMethod(string $procedure, string|object $class, string $method = ''): self
     {
-        if ($method === '') {
-            $method = $procedure;
+        $this->classes[$procedure] = [$class, $method === '' ? $procedure : $method];
+
+        return $this;
+    }
+
+    /**
+     * Expose methods of an instance under their own name.
+     *
+     * The methods have to be listed explicitly: exposing every public method of
+     * an object by reflection, as v1 did, publishes more than intended as soon
+     * as the class grows a helper.
+     *
+     * @param list<string> $methods Names of the methods that become procedures
+     */
+    public function withObject(object $instance, array $methods): self
+    {
+        foreach ($methods as $method) {
+            if (str_starts_with($method, '__')) {
+                throw new InvalidArgumentException(
+                    sprintf('Magic method "%s" cannot be exposed as a procedure', $method),
+                );
+            }
+
+            if (!method_exists($instance, $method)) {
+                throw new InvalidArgumentException(
+                    sprintf('Method "%s" does not exist on %s', $method, $instance::class),
+                );
+            }
         }
 
-        $this->classes[$procedure] = [$class, $method];
+        $this->instances[] = [$instance, array_values($methods)];
 
         return $this;
     }
 
     /**
-     * Bind a class instance
-     *
-     * @param  mixed   $instance
-     *
-     * @return $this
+     * Method called on the object before the procedure itself, with the
+     * procedure name as argument.
      */
-    public function withObject($instance)
-    {
-        $this->instances[] = $instance;
-
-        return $this;
-    }
-
-    /**
-     * Set a before method to call
-     *
-     * @param  string $methodName
-     *
-     * @return $this
-     */
-    public function withBeforeMethod($methodName)
+    public function withBeforeMethod(string $methodName): self
     {
         $this->beforeMethodName = $methodName;
 
@@ -108,13 +100,9 @@ class ProcedureHandler
     }
 
     /**
-     * Register multiple procedures from array
-     *
-     * @param  array  $callbacks Array with procedure names (array keys) and callbacks (array values)
-     *
-     * @return $this
+     * @param array<string, Closure> $callbacks Callbacks keyed by procedure name
      */
-    public function withCallbackArray($callbacks)
+    public function withCallbackArray(array $callbacks): self
     {
         foreach ($callbacks as $procedure => $callback) {
             $this->withCallback($procedure, $callback);
@@ -124,13 +112,9 @@ class ProcedureHandler
     }
 
     /**
-     * Bind multiple procedures to classes from array
-     *
-     * @param  array  $callbacks Array with procedure names (array keys) and class and method names (array values)
-     *
-     * @return $this
+     * @param array<string, array{class-string|object, string}> $callbacks Class and method keyed by procedure name
      */
-    public function withClassAndMethodArray($callbacks)
+    public function withClassAndMethodArray(array $callbacks): self
     {
         foreach ($callbacks as $procedure => $callback) {
             $this->withClassAndMethod($procedure, $callback[0], $callback[1]);
@@ -140,175 +124,83 @@ class ProcedureHandler
     }
 
     /**
-     * Execute the procedure
+     * How to build an instance of a class registered by name.
      *
-     * @param  string   $procedure    Procedure name
-     * @param  array    $params       Procedure params
+     * Bridges any container: ->withInstanceFactory($container->get(...)).
      *
-     * @return mixed
-     *
-     * @throws \ReflectionException
+     * @param Closure(class-string): object $factory
      */
-    public function executeProcedure($procedure, array $params = [])
+    public function withInstanceFactory(Closure $factory): self
+    {
+        $this->instanceFactory = $factory;
+
+        return $this;
+    }
+
+    /**
+     * @param array<array-key, mixed> $params
+     *
+     * @throws MethodNotFoundException
+     * @throws InvalidParamsException
+     */
+    public function executeProcedure(string $procedure, array $params = []): mixed
     {
         if (isset($this->callbacks[$procedure])) {
             return $this->executeCallback($this->callbacks[$procedure], $params);
-        } elseif (
-            isset($this->classes[$procedure])
-            && method_exists($this->classes[$procedure][0], $this->classes[$procedure][1])
-        ) {
-            return $this->executeMethod($this->classes[$procedure][0], $this->classes[$procedure][1], $params);
         }
 
-        // Never let a client resolve magic methods (__construct, __call, ...)
-        // through a bound instance by using their name as a procedure name.
-        if (strncmp($procedure, '__', 2) !== 0) {
-            foreach ($this->instances as $instance) {
-                if (method_exists($instance, $procedure)) {
-                    return $this->executeMethod($instance, $procedure, $params);
-                }
+        if (isset($this->classes[$procedure])) {
+            [$class, $method] = $this->classes[$procedure];
+
+            if (method_exists($class, $method)) {
+                return $this->executeMethod($class, $method, $params);
             }
         }
 
-        throw new BadFunctionCallException('Unable to find the procedure');
+        foreach ($this->instances as [$instance, $methods]) {
+            if (in_array($procedure, $methods, true)) {
+                return $this->executeMethod($instance, $procedure, $params);
+            }
+        }
+
+        throw new MethodNotFoundException('Unable to find the procedure');
     }
 
     /**
-     * Execute a callback
-     *
-     * @param  Closure   $callback     Callback
-     * @param  array     $params       Procedure params
-     *
-     * @return mixed
-     *
-     * @throws \ReflectionException
+     * @param array<array-key, mixed> $params
      */
-    public function executeCallback(Closure $callback, $params)
+    private function executeCallback(Closure $callback, array $params): mixed
     {
         $reflection = new ReflectionFunction($callback);
 
-        $arguments = $this->getArguments(
-            $params,
-            $reflection->getParameters(),
-            $reflection->getNumberOfRequiredParameters(),
-            $reflection->getNumberOfParameters()
-        );
-
-        return $reflection->invokeArgs($arguments);
+        return $reflection->invokeArgs($this->binder->bind($reflection, $params));
     }
 
     /**
-     * Execute a method
-     *
-     * @param  mixed     $class        Class name or instance
-     * @param  string    $method       Method name
-     * @param  array     $params       Procedure params
-     *
-     * @return mixed
-     *
-     * @throws \ReflectionException
+     * @param class-string|object $class
+     * @param array<array-key, mixed> $params
      */
-    public function executeMethod($class, $method, $params)
+    private function executeMethod(string|object $class, string $method, array $params): mixed
     {
-        $instance = is_string($class) ? new $class() : $class;
-        $reflection = new ReflectionMethod($class, $method);
+        $instance = is_string($class) ? $this->instantiate($class) : $class;
+        $reflection = new ReflectionMethod($instance, $method);
 
-        $this->executeBeforeMethod($instance, $method);
+        if ($this->beforeMethodName !== '' && method_exists($instance, $this->beforeMethodName)) {
+            $instance->{$this->beforeMethodName}($method);
+        }
 
-        $arguments = $this->getArguments(
-            $params,
-            $reflection->getParameters(),
-            $reflection->getNumberOfRequiredParameters(),
-            $reflection->getNumberOfParameters()
-        );
-
-        return $reflection->invokeArgs($instance, $arguments);
+        return $reflection->invokeArgs($instance, $this->binder->bind($reflection, $params));
     }
 
     /**
-     * Execute before method if defined
-     *
-     * @param  mixed  $object
-     * @param  string $method
+     * @param class-string $class
      */
-    public function executeBeforeMethod($object, $method)
+    private function instantiate(string $class): object
     {
-        if ($this->beforeMethodName !== '' && method_exists($object, $this->beforeMethodName)) {
-            call_user_func_array([$object, $this->beforeMethodName], [$method]);
-        }
-    }
-
-    /**
-     * Get procedure arguments
-     *
-     * @param  array   $requestParams    Incoming arguments
-     * @param  array   $methodParams     Procedure arguments
-     * @param  integer $nbRequiredParams Number of required parameters
-     * @param  integer $nbMaxParams      Maximum number of parameters
-     *
-     * @return array
-     */
-    public function getArguments(array $requestParams, array $methodParams, $nbRequiredParams, $nbMaxParams)
-    {
-        $nbParams = count($requestParams);
-
-        if ($nbParams < $nbRequiredParams) {
-            throw new InvalidArgumentException('Wrong number of arguments');
+        if ($this->instanceFactory instanceof Closure) {
+            return ($this->instanceFactory)($class);
         }
 
-        if ($nbParams > $nbMaxParams) {
-            throw new InvalidArgumentException('Too many arguments');
-        }
-
-        if ($this->isPositionalArguments($requestParams)) {
-            return $requestParams;
-        }
-
-        return $this->getNamedArguments($requestParams, $methodParams);
-    }
-
-    /**
-     * Return true if we have positional parameters
-     *
-     * @param  array    $request_params      Incoming arguments
-     *
-     * @return bool
-     */
-    public function isPositionalArguments(array $request_params)
-    {
-        return array_keys($request_params) === range(0, count($request_params) - 1);
-    }
-
-    /**
-     * Get named arguments
-     *
-     * @param  array $requestParams Incoming arguments
-     * @param  array $methodParams  Procedure arguments
-     *
-     * @return array
-     */
-    public function getNamedArguments(array $requestParams, array $methodParams)
-    {
-        $params = [];
-
-        foreach ($methodParams as $p) {
-            $name = $p->getName();
-
-            if (array_key_exists($name, $requestParams)) {
-                $params[$name] = $requestParams[$name];
-            } elseif ($p->isDefaultValueAvailable()) {
-                $params[$name] = $p->getDefaultValue();
-            } else {
-                throw new InvalidArgumentException('Missing argument: ' . $name);
-            }
-        }
-
-        if ($undefinedRequestParams = array_diff_key($requestParams, $params)) {
-            throw new InvalidArgumentException(
-                'Undefined arguments: ' . implode(', ', array_keys($undefinedRequestParams))
-            );
-        }
-
-        return $params;
+        return new $class();
     }
 }

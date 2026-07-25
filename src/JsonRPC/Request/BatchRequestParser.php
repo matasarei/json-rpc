@@ -58,6 +58,7 @@ class BatchRequestParser extends RequestParser
                 ->withPayload($payload)
                 ->withProcedureHandler($this->procedureHandler)
                 ->withMiddlewareHandler($this->middlewareHandler)
+                ->withCredentials($this->username, $this->password)
                 ->withLocalException($this->localExceptions)
                 ->parse();
         }

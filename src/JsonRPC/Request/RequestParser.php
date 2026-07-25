@@ -50,6 +50,18 @@ class RequestParser
     protected $middlewareHandler;
 
     /**
+     * Credentials passed to the middleware
+     *
+     * @var string|null
+     */
+    protected $username;
+
+    /**
+     * @var string|null
+     */
+    protected $password;
+
+    /**
      * Mask unrecognized exceptions as a generic internal error
      *
      * @var bool
@@ -130,6 +142,22 @@ class RequestParser
      *
      * @return $this
      */
+    /**
+     * Credentials handed to the middleware for this request
+     *
+     * @param string|null $username
+     * @param string|null $password
+     *
+     * @return $this
+     */
+    public function withCredentials($username, $password)
+    {
+        $this->username = $username;
+        $this->password = $password;
+
+        return $this;
+    }
+
     public function withMiddlewareHandler(MiddlewareHandler $middlewareHandler)
     {
         $this->middlewareHandler = $middlewareHandler;
@@ -149,9 +177,7 @@ class RequestParser
             JsonFormatValidator::validate($this->payload);
             RpcFormatValidator::validate($this->payload);
 
-            $this->middlewareHandler
-                ->withProcedure($this->payload['method'])
-                ->execute();
+            $this->middlewareHandler->execute($this->username, $this->password, $this->payload['method']);
 
             $result = $this->procedureHandler->executeProcedure(
                 $this->payload['method'],
