@@ -1,5 +1,45 @@
 # Changelog
 
+## v2.0.0 (unreleased)
+
+A rewrite that keeps the shape of the API. See [UPGRADE-2.0.md](UPGRADE-2.0.md) for the
+complete v1 to v2 mapping.
+
+### Added
+- **Pluggable transports**: HTTP I/O sits behind `TransportInterface`. `CurlTransport` and
+  `StreamTransport` keep the library dependency free, and `Psr18Transport` sends requests
+  through any PSR-18 client such as symfony/http-client or Guzzle (closes #21).
+  Authentication, cookies, logging and error handling behave the same on all of them.
+- **Framework friendly server**: `Server::execute(?ServerRequest)` returns a
+  `ServerResponse` with a body, a status code and headers. `ServerRequest::fromGlobals()`
+  keeps the one-line script usage; `ServerRequest::fromString()` is what a controller
+  passes in.
+- `BatchBuilder`: batches are collected by a single-use builder and their answers are
+  correlated by request id. A partially failed batch throws `BatchFailedException`, which
+  carries the results that succeeded and the errors keyed by call position.
+- `HttpClient::withCaFile()`, `withLocalCert()` and `withTransportOptions()`.
+- `ProcedureHandler::withInstanceFactory()` to build procedure classes through a container.
+- `JsonRpcException` marker interface, `MethodNotFoundException`, `InvalidParamsException`,
+  and the `ErrorCode` enum for the codes of the specification.
+- IPv6 and IPv6 CIDR support in `HostValidator`.
+
+### Changed
+- Requires PHP 8.4, `psr/log` ^3.0, and declares `strict_types=1` everywhere.
+- Secure by default: internal error masking is on, batches are limited to 100 calls,
+  `withObject()` requires an explicit method allowlist, and the server catches `Throwable`.
+- A request made only of notifications is answered with HTTP 204 and an empty body.
+- 401 and 403 answers now actually carry their status and headers; in 1.x they were set on
+  response builders that were discarded.
+- Request ids come from an injectable generator backed by `random_int()`.
+- Test suite rewritten: no global function shadowing, PHPStan at max level without a
+  baseline, and 100% line coverage enforced in CI.
+
+### Removed
+- `RequestParser`, `BatchRequestParser`, `ResponseBuilder`, the three format validators,
+  `ErrorLogLogger`, every `static create()` factory, the deprecated `Server::register()`,
+  `bind()` and `attach()`, the client `$returnException` mode, `HttpClient::withDebug()`,
+  `addOption()`, `setOptions()` and `withSslLocalCert()`.
+
 ## v1.5.0 (2026-07-24)
 
 ### Added
