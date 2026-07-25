@@ -56,7 +56,7 @@ final class CurlTransport implements TransportInterface
             CURLOPT_POSTFIELDS => $request->body,
             CURLOPT_HTTPHEADER => $request->headerLines(),
             CURLOPT_CONNECTTIMEOUT => $this->options->connectTimeout,
-            CURLOPT_TIMEOUT => $this->options->timeout,
+            CURLOPT_TIMEOUT => $this->options->transferTimeout,
             // A JSON-RPC endpoint is a fixed POST URL. Following a redirect would
             // resend the Authorization and Cookie headers to the new location,
             // which the server operator does not necessarily control.

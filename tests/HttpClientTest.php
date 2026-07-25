@@ -383,7 +383,7 @@ final class HttpClientTest extends TestCase
 
         $options = $factory->usedOptions();
         $this->assertSame(1, $options->connectTimeout);
-        $this->assertSame(2, $options->timeout);
+        $this->assertSame(2, $options->transferTimeout);
         $this->assertFalse($options->verifySsl);
         $this->assertSame('/ca.pem', $options->caFile);
         $this->assertSame('/client.pem', $options->localCert);

@@ -51,7 +51,8 @@ final readonly class ResponseParser
      *
      * @return array{results: array<int, mixed>, errors: array<int, JsonRpcException>}
      *
-     * @throws InvalidJsonFormatException
+     * @throws InvalidJsonFormatException When the answer is not a batch
+     * @throws JsonRpcException When the server refused the batch as a whole
      */
     public function parseBatch(mixed $payload, array $expectedIds): array
     {

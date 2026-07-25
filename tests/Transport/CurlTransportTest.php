@@ -79,7 +79,7 @@ final class CurlTransportTest extends TestCase
 
     public function testReportsATimeoutWithItsOwnMessage(): void
     {
-        $transport = new CurlTransport(new TransportOptions(timeout: 1));
+        $transport = new CurlTransport(new TransportOptions(transferTimeout: 1));
 
         $this->expectException(ConnectionFailureException::class);
         $this->expectExceptionMessage('Operation timed out');
@@ -111,7 +111,7 @@ final class CurlTransportTest extends TestCase
     {
         $transport = new CurlTransport(new TransportOptions(
             connectTimeout: 2,
-            timeout: 30,
+            transferTimeout: 30,
             verifySsl: false,
             caFile: '/ca.pem',
             localCert: '/client.pem',

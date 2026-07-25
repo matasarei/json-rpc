@@ -113,6 +113,10 @@ final class Server
     /**
      * Do not relay this exception to the client: let it bubble out of execute().
      *
+     * The 401 and 403 answers stay the server's job unless what is registered is
+     * more specific than AuthenticationFailureException or AccessDeniedException,
+     * so registering one of their ancestors does not take those answers away.
+     *
      * @param class-string $exception
      */
     public function withLocalException(string $exception): self
@@ -176,10 +180,11 @@ final class Server
                 return $this->forbidden();
             }
 
-            return $this->respond(
-                ['jsonrpc' => '2.0', 'error' => $errorResponseFactory->create($exception), 'id' => null],
-                $errorResponseFactory,
-            );
+            return new ServerResponse($this->encodeSafely([
+                'jsonrpc' => '2.0',
+                'error' => $errorResponseFactory->create($exception),
+                'id' => null,
+            ]));
         }
     }
 
@@ -302,25 +307,43 @@ final class Server
         try {
             return json_encode($response, self::ENCODING_OPTIONS);
         } catch (Throwable $exception) {
-            // Encoding a result runs application code, which can raise what the
-            // application asked to handle itself.
-            if ($this->isHandledByApplication($exception)) {
+            // Encoding a result runs application code, so it can raise what the
+            // application asked to handle itself, and what the server answers
+            // with a status code.
+            if (
+                $this->isHandledByApplication($exception)
+                || $exception instanceof AuthenticationFailureException
+                || $exception instanceof AccessDeniedException
+            ) {
                 throw $exception;
             }
 
             $id = is_array($response) ? $response['id'] ?? null : null;
             $error = $errorResponseFactory->create(new ResponseEncodingFailureException($exception->getMessage()));
 
-            // Anything that could fail to encode a second time is dropped: the
-            // error member only holds an integer, a string and the exception
-            // message, and the id is kept only when it is encodable.
+            // The id has already been validated, this only makes sure the
+            // answer to a failed encoding cannot fail to encode in turn.
             $id = is_int($id) || is_string($id) || (is_float($id) && is_finite($id)) ? $id : null;
 
-            return (string) json_encode(
-                ['jsonrpc' => '2.0', 'error' => $error, 'id' => $id],
-                self::ENCODING_OPTIONS & ~JSON_THROW_ON_ERROR,
-            );
+            return $this->encodeSafely(['jsonrpc' => '2.0', 'error' => $error, 'id' => $id]);
         }
+    }
+
+    /**
+     * Encode a response that must not fail to encode.
+     *
+     * The payload holds an integer, an identifier that has been validated and
+     * text coming from an exception, which is the only part that can be
+     * malformed, so invalid byte sequences are replaced rather than refused.
+     *
+     * @param array<string, mixed> $payload
+     */
+    private function encodeSafely(array $payload): string
+    {
+        return (string) json_encode(
+            $payload,
+            (self::ENCODING_OPTIONS & ~JSON_THROW_ON_ERROR) | JSON_INVALID_UTF8_SUBSTITUTE,
+        );
     }
 
     private function unauthorized(): ServerResponse

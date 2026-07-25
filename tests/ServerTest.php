@@ -188,6 +188,45 @@ final class ServerTest extends TestCase
         );
     }
 
+    public function testKeepsTheBatchReadableWhenAnErrorMessageIsNotValidUtf8(): void
+    {
+        $this->server->withInternalErrorMasking(false);
+        $this->server->getProcedureHandler()
+            ->withCallback('ping', fn(): string => 'pong')
+            ->withCallback('entity', fn(): object => new class implements JsonSerializable {
+                public function jsonSerialize(): mixed
+                {
+                    throw new RuntimeException("row \xE9\xE8 is broken");
+                }
+            });
+
+        $body = $this->call('[
+            {"jsonrpc":"2.0","method":"ping","id":"a"},
+            {"jsonrpc":"2.0","method":"entity","id":"b"}
+        ]');
+
+        /** @var list<array{result?: string, error?: array{code: int}}> $decoded */
+        $decoded = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+
+        $this->assertCount(2, $decoded);
+        $this->assertSame('pong', $decoded[0]['result'] ?? null);
+        $this->assertSame(-32603, $decoded[1]['error']['code'] ?? null);
+    }
+
+    public function testAnswersAStatusCodeForAnAccessFailureRaisedWhileEncoding(): void
+    {
+        $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
+            public function jsonSerialize(): mixed
+            {
+                throw new AccessDeniedException('Not for you');
+            }
+        });
+
+        $response = $this->server->execute(ServerRequest::fromString('{"jsonrpc":"2.0","method":"entity","id":1}'));
+
+        $this->assertSame(403, $response->statusCode);
+    }
+
     public function testReportsAnExceptionRaisedWhileEncodingTheResponse(): void
     {
         $this->server->getProcedureHandler()->withCallback('entity', fn(): object => new class implements JsonSerializable {
@@ -211,7 +250,7 @@ final class ServerTest extends TestCase
         );
     }
 
-    public function testAnUnencodableIdCannotTakeDownTheRestOfTheBatch(): void
+    public function testARefusedElementDoesNotTakeDownTheRestOfTheBatch(): void
     {
         $body = $this->call('[
             {"jsonrpc":"2.0","method":"sum","params":[3,4],"id":1},

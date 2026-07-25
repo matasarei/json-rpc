@@ -121,7 +121,7 @@ final class StreamTransportTest extends TestCase
 
     public function testPrefersTheTransferTimeoutWhenSet(): void
     {
-        $options = (new StreamTransport(new TransportOptions(connectTimeout: 7, timeout: 30)))
+        $options = (new StreamTransport(new TransportOptions(connectTimeout: 7, transferTimeout: 30)))
             ->buildContextOptions(new TransportRequest('https://example.com/rpc', ''));
 
         $this->assertSame(30, $options['http']['timeout']);

@@ -57,6 +57,15 @@ The hardening that was opt-in in 1.5 is the default behaviour in 2.0.
   and an injected PSR-18 client applies its own policy (Guzzle and symfony/http-client
   follow redirects by default, so disable that on a client you inject).
 
+- **Headers cannot be injected into a request.** A header name or value containing a
+  carriage return, a line feed or a null byte is refused, so an application putting a
+  value it received into `withHeaders()` or `withCookies()` cannot have extra headers
+  smuggled into its request.
+
+- **Cookies a server deletes are forgotten.** A `Set-Cookie` with an empty value or
+  `Max-Age=0` removes the cookie from the jar, so a session is not sent again after a
+  logout.
+
 - **Credentials are redacted from logs.** `Authorization`, `Cookie`, `Set-Cookie` and
   `Proxy-Authorization` values are replaced by `[redacted]` before anything is handed to a
   PSR-3 logger.
