@@ -1,39 +1,39 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Validator;
 
 use JsonRPC\Exception\AuthenticationFailureException;
 
 /**
- * Class UserValidator
- *
- * @package JsonRPC\Validator
- * @author  Frederic Guillot
+ * Checks the credentials of a request against the configured users.
  */
-class UserValidator
+final readonly class UserValidator
 {
-    public static function validate(array $users, $username, $password)
+    /**
+     * @param array<array-key, mixed> $users Passwords keyed by username
+     *
+     * @throws AuthenticationFailureException
+     */
+    public function validate(array $users, ?string $username, ?string $password): void
     {
-        if (empty($users)) {
+        if ($users === []) {
             return;
         }
 
-        // Only a string stored password can ever match: a non-string entry
-        // (false, null, int from a config file) must not become comparable
-        // through casting.
-        $hasValidEntry = isset($users[$username]) && is_string($users[$username]);
-        $expected = $hasValidEntry ? $users[$username] : '';
+        // Only a stored string can ever match: an entry that is not a string
+        // (false, an integer coming from a configuration file) must not become
+        // comparable through casting.
+        $hasEntry = $username !== null && isset($users[$username]) && is_string($users[$username]);
+        $expected = $hasEntry ? $users[$username] : '';
 
-        // Compare fixed-length digests so the comparison takes the same time
-        // for unknown usernames and passwords of any length, to avoid leaking
-        // which usernames exist through response timing. A missing password
-        // (null) is always rejected, even against an empty stored password.
-        $match = is_string($password) && hash_equals(
-            hash('sha256', $expected),
-            hash('sha256', $password)
-        );
+        // Comparing digests of fixed length keeps the comparison time
+        // independent from the username being known and from the password
+        // length, which would otherwise leak both.
+        $matches = $password !== null && hash_equals(hash('sha256', $expected), hash('sha256', $password));
 
-        if (! $match || ! $hasValidEntry) {
+        if (!$matches || !$hasEntry) {
             throw new AuthenticationFailureException('Access not allowed');
         }
     }

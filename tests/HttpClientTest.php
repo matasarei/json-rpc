@@ -253,15 +253,22 @@ final class HttpClientTest extends TestCase
         $request = $logger->contextOf('Request');
         $this->assertSame('https://example.com/rpc', $request['url']);
         $this->assertSame('{"jsonrpc":"2.0","method":"ping","id":1}', $request['payload']);
-        $this->assertSame('[redacted]', $request['headers']['Authorization']);
-        $this->assertSame('[redacted]', $request['headers']['Cookie']);
-        $this->assertSame('application/json', $request['headers']['Content-Type']);
+        $this->assertSame([
+            'User-Agent' => 'JSON-RPC PHP Client <https://github.com/matasarei/json-rpc>',
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Connection' => 'close',
+            'Authorization' => '[redacted]',
+            'Cookie' => '[redacted]',
+        ], $request['headers']);
 
         $response = $logger->contextOf('Response');
         $this->assertSame(200, $response['status']);
-        $this->assertSame('[redacted]', $response['headers']['set-cookie']);
-        $this->assertSame(['application/json'], $response['headers']['content-type']);
-        $this->assertStringContainsString('pong', $response['payload']);
+        $this->assertSame(
+            ['set-cookie' => '[redacted]', 'content-type' => ['application/json']],
+            $response['headers'],
+        );
+        $this->assertSame('{"jsonrpc":"2.0","result":"pong","id":1}', $response['payload']);
     }
 
     public function testLogsNothingWithoutALogger(): void

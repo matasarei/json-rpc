@@ -34,6 +34,9 @@ final class ProcedureHandler
 
     private string $beforeMethodName = '';
 
+    /**
+     * @var (Closure(class-string): object)|null
+     */
     private ?Closure $instanceFactory = null;
 
     public function __construct(private readonly ParameterBinder $binder = new ParameterBinder())
@@ -83,7 +86,7 @@ final class ProcedureHandler
             }
         }
 
-        $this->instances[] = [$instance, array_values($methods)];
+        $this->instances[] = [$instance, $methods];
 
         return $this;
     }

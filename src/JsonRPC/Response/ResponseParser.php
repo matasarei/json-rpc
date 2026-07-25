@@ -94,14 +94,14 @@ final readonly class ResponseParser
      */
     private function errorOf(array $payload): ?JsonRpcException
     {
-        if (!isset($payload['error']['code'])) {
+        $error = $payload['error'] ?? null;
+
+        if (!is_array($error) || !isset($error['code'])) {
             return null;
         }
 
-        /** @var array{code: mixed, message?: mixed, data?: mixed} $error */
-        $error = $payload['error'];
-        $code = (int) $error['code'];
-        $message = (string) ($error['message'] ?? '');
+        $code = is_numeric($error['code']) ? (int) $error['code'] : 0;
+        $message = is_scalar($error['message'] ?? null) ? (string) $error['message'] : '';
         $data = $error['data'] ?? null;
 
         return match (ErrorCode::tryFrom($code)) {

@@ -65,9 +65,17 @@ final class ClientTest extends TestCase
         $client->execute('methodA');
     }
 
+    /**
+     * Calls a procedure the way a user would, with the name as a method.
+     */
+    private function magicCall(Client|BatchBuilder $target, string $procedure, mixed ...$arguments): mixed
+    {
+        return $target->{$procedure}(...$arguments);
+    }
+
     public function testMagicCallsPassASingleArrayAsNamedArguments(): void
     {
-        $this->client->methodA(['a' => 'b']);
+        $this->magicCall($this->client, 'methodA', ['a' => 'b']);
 
         $this->assertSame(
             '{"jsonrpc":"2.0","method":"methodA","id":1,"params":{"a":"b"}}',
@@ -77,7 +85,7 @@ final class ClientTest extends TestCase
 
     public function testMagicCallsPassSeveralArgumentsAsPositionalArguments(): void
     {
-        $this->client->methodA(3, 4);
+        $this->magicCall($this->client, 'methodA', 3, 4);
 
         $this->assertSame(
             '{"jsonrpc":"2.0","method":"methodA","id":1,"params":[3,4]}',
@@ -87,7 +95,7 @@ final class ClientTest extends TestCase
 
     public function testPositionalModeKeepsASingleArrayArgumentPositional(): void
     {
-        $this->client->withPositionalArguments()->methodA(['a', 'b']);
+        $this->magicCall($this->client->withPositionalArguments(), 'methodA', ['a', 'b']);
 
         $this->assertSame(
             '{"jsonrpc":"2.0","method":"methodA","id":1,"params":[["a","b"]]}',
@@ -97,9 +105,12 @@ final class ClientTest extends TestCase
 
     public function testSendsANotificationWithoutAnId(): void
     {
-        $client = new Client('', new HttpClient('', FakeTransport::withBody('', 204)));
+        $transport = FakeTransport::withBody('', 204);
+        $client = new Client('', new HttpClient('', $transport));
 
-        $this->assertNull($client->notify('methodA', ['a' => 'b']));
+        $client->notify('methodA', ['a' => 'b']);
+
+        $this->assertSame('{"jsonrpc":"2.0","method":"methodA","params":{"a":"b"}}', $transport->lastRequest()->body);
     }
 
     public function testNotificationPayloadHasNoIdMember(): void
@@ -127,7 +138,9 @@ final class ClientTest extends TestCase
         $transport = FakeTransport::withJson([['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1]]);
         $client = new Client('', new HttpClient('', $transport), new SequentialIdGenerator());
 
-        $client->withPositionalArguments()->batch()->methodA(['a', 'b'])->send();
+        $batch = $client->withPositionalArguments()->batch();
+        $this->magicCall($batch, 'methodA', ['a', 'b']);
+        $batch->send();
 
         $this->assertStringContainsString('"params":[["a","b"]]', $transport->lastRequest()->body);
     }
