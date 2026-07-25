@@ -75,16 +75,20 @@ final class StreamTransport implements TransportInterface
             return;
         }
 
-        $announced = array_values(array_unique($response->headerValues('Content-Length')));
+        // Note that the wrapper removes Transfer-Encoding once it has put a
+        // chunked body back together, so a response sending both that and a
+        // Content-Length, which RFC 9112 forbids, is read as a short body.
+        $announced = $response->headerValues('Content-Length');
+        // When a response announces several lengths, libcurl keeps the last one
+        // and holds the body to it. This transport stands in for libcurl, so it
+        // reads them the same way.
+        $length = end($announced);
 
-        // Lengths that contradict each other say nothing reliable about what
-        // should have arrived. libcurl hands such a response over as it is, and
-        // this transport is expected to behave like it.
-        if (count($announced) !== 1 || !ctype_digit($announced[0])) {
+        if ($length === false || !ctype_digit($length)) {
             return;
         }
 
-        $missing = (int) $announced[0] - strlen($response->body);
+        $missing = (int) $length - strlen($response->body);
 
         if ($missing > 0) {
             throw new ConnectionFailureException(

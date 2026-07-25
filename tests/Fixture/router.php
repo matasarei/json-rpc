@@ -60,10 +60,11 @@ switch ($path) {
         return true;
 
     case '/contradictory-length':
+        // The last length is the one that counts, and it is too big.
         $payload = json_encode(['jsonrpc' => '2.0', 'result' => 'ok', 'id' => 1]);
         header('Content-Type: application/json');
-        header('Content-Length: 900');
-        header('Content-Length: ' . strlen((string) $payload), false);
+        header('Content-Length: ' . strlen((string) $payload));
+        header('Content-Length: 900', false);
         echo $payload;
 
         return true;

@@ -307,36 +307,24 @@ final class HttpClientTest extends TestCase
         $client = new HttpClient('https://example.com/rpc', $transport);
 
         $this->expectException(ResponseException::class);
-        $this->expectExceptionMessage('compressed with "identity, gzip"');
+        // "identity" says nothing, so it is left out of the message.
+        $this->expectExceptionMessage('compressed with "gzip"');
 
         $client->execute('{}');
     }
 
-    public function testDoesNotBlameCompressionForABinaryBodyThatAnnouncesNothing(): void
+    /**
+     * A body a client already decompressed is judged on its bytes, not on the
+     * header it kept, whether or not those bytes are valid UTF-8.
+     */
+    public function testDoesNotBlameCompressionForABodyThatIsSimplyUnreadable(): void
     {
-        // Latin-1 text: not valid UTF-8, but no compression magic and nothing
-        // claiming it was encoded either.
-        foreach ([[], ['content-encoding' => ['identity']]] as $headers) {
+        foreach ([[], ['content-encoding' => ['identity']], ['content-encoding' => ['gzip']]] as $headers) {
+            // Latin-1 text: not valid UTF-8, and not compressed either.
             $transport = new FakeTransport(new TransportResponse(200, "caf\xE9 is down", $headers));
 
             $this->assertNull((new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
         }
-    }
-
-    public function testReportsABodyEncodedWithSomethingThatHasNoMagicBytes(): void
-    {
-        // Brotli and zstd cannot be recognised from their first bytes, so the
-        // header is what says the body was never decoded.
-        $transport = new FakeTransport(new TransportResponse(
-            200,
-            "\x1B\x3F\x00\x00\xC4\xB2\xE1\x81",
-            ['content-encoding' => ['br']],
-        ));
-
-        $this->expectException(ResponseException::class);
-        $this->expectExceptionMessage('compressed with "br"');
-
-        (new HttpClient('https://example.com/rpc', $transport))->execute('{}');
     }
 
     public function testReportsACompressedBodyEvenWithoutAHeaderSayingSo(): void

@@ -77,7 +77,8 @@ final class Server
      * Read the credentials from another header than the standard one, for
      * setups where the web server does not forward Authorization.
      *
-     * The value is expected to be base64 encoded, like Basic authentication.
+     * The value is read like an Authorization header: "Basic <base64>", or the
+     * base64 on its own, so a forwarded header works as it arrives.
      */
     public function withAuthenticationHeader(string $header): self
     {

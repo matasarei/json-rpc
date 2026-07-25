@@ -83,18 +83,17 @@ final class StreamTransportTest extends TestCase
     }
 
     /**
-     * libcurl accepts such a response, so this transport does too: the point of
-     * the length check is to catch a body that was cut short, not to be stricter
-     * than the transport it stands in for.
+     * libcurl holds the body to the last length it was given, so this transport
+     * reads contradictory lengths the same way rather than picking its own rule.
      */
-    public function testAcceptsAResponseWhoseAnnouncedLengthsContradictEachOther(): void
+    public function testReadsTheLastOfSeveralAnnouncedLengths(): void
     {
-        $response = (new StreamTransport())->send(
-            new TransportRequest(self::$server->url('/contradictory-length'), ''),
-        );
+        $transport = new StreamTransport();
 
-        $this->assertSame(200, $response->statusCode);
-        $this->assertStringContainsString('"result":"ok"', $response->body);
+        $this->expectException(ConnectionFailureException::class);
+        $this->expectExceptionMessage('The response ended with 862 bytes missing');
+
+        $transport->send(new TransportRequest(self::$server->url('/contradictory-length'), ''));
     }
 
     public function testAcceptsAnAnswerDefinedToCarryNoBody(): void

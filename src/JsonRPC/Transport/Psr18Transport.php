@@ -10,6 +10,7 @@ use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use RuntimeException;
 
 /**
  * Sends requests through any PSR-18 HTTP client.
@@ -63,7 +64,11 @@ final readonly class Psr18Transport implements TransportInterface
 
         try {
             $psrResponse = $this->client->sendRequest($psrRequest);
-        } catch (ClientExceptionInterface $exception) {
+
+            // The body of a PSR-7 response is a lazy stream, so reading it is
+            // still part of the request: a transfer cut short raises here.
+            $body = (string) $psrResponse->getBody();
+        } catch (ClientExceptionInterface | RuntimeException $exception) {
             throw new ConnectionFailureException(
                 'Unable to establish a connection: ' . $exception->getMessage(),
                 0,
@@ -77,10 +82,6 @@ final readonly class Psr18Transport implements TransportInterface
             $headers[strtolower($name)] = array_values($values);
         }
 
-        return new TransportResponse(
-            $psrResponse->getStatusCode(),
-            (string) $psrResponse->getBody(),
-            $headers,
-        );
+        return new TransportResponse($psrResponse->getStatusCode(), $body, $headers);
     }
 }
