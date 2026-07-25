@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JsonRPC;
 
+use InvalidArgumentException;
 use JsonRPC\Client\BatchBuilder;
 use JsonRPC\Exception\JsonRpcException;
 use JsonRPC\Request\IdGeneratorInterface;
@@ -90,6 +91,7 @@ final class Client
      * @param array<string, string> $headers Additional headers for this request
      *
      * @throws JsonRpcException
+     * @throws InvalidArgumentException When a header carries a line break or a null byte
      */
     public function execute(
         string $procedure,
@@ -113,6 +115,7 @@ final class Client
      * @param array<string, string> $headers
      *
      * @throws JsonRpcException
+     * @throws InvalidArgumentException When a header carries a line break or a null byte
      */
     public function notify(
         string $procedure,

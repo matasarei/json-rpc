@@ -168,6 +168,8 @@ final class HttpClient
 
     /**
      * @param array<string, string> $cookies
+     *
+     * @throws InvalidArgumentException When a cookie would break the request
      */
     public function withCookies(array $cookies, bool $replace = false): self
     {

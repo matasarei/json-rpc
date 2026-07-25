@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JsonRPC\Client;
 
+use InvalidArgumentException;
 use JsonRPC\Exception\BatchFailedException;
 use JsonRPC\Exception\JsonRpcException;
 use JsonRPC\HttpClient;
@@ -90,6 +91,7 @@ final class BatchBuilder
      * @throws BatchFailedException When at least one call failed
      * @throws JsonRpcException
      * @throws LogicException When the batch was already sent
+     * @throws InvalidArgumentException When a header carries a line break or a null byte
      */
     public function send(array $headers = []): array
     {

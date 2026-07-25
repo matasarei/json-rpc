@@ -72,7 +72,7 @@ final class CookieJar
      */
     private function isSafe(string $value): bool
     {
-        return preg_match('~[\r\n\0;]~', $value) !== 1;
+        return preg_match('~[\x00-\x1F\x7F;]~', $value) !== 1;
     }
 
     /**

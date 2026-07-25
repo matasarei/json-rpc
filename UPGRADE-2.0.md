@@ -32,6 +32,12 @@ Requirements
 Every file declares `strict_types=1`, so arguments are no longer coerced: passing `"5"`
 where an `int` is declared now raises a `TypeError`.
 
+**This reaches your procedures.** A client sending `"params": ["5", "3"]` to
+`function (int $a, int $b)` was served by 1.x, which coerced the strings; 2.0 answers
+`-32602 Invalid params`. Clients that send numbers as strings have to send numbers, or the
+procedure has to declare `string` and cast. This is the change most likely to be noticed by
+an existing deployment.
+
 Every class except the exceptions is `final`. Subclassing was possible in 1.x, in
 particular the `protected` methods of `HttpClient` (`buildContext()`, `parseCookies()`,
 `isCurlLoaded()`, `redactHeaders()`, `buildHeaders()`). What subclassing was used for is
@@ -143,8 +149,10 @@ $client = new Client($url, $httpClient, $idGenerator);
 The `$returnException` mode is gone: a failed call always throws. If you used it to
 inspect errors, catch the exception instead.
 
-`notify()` returns `void` (it returned `null`), and `execute()` takes the same arguments
-as before.
+`notify()` returns `void` (it returned `null`). `execute()` takes the same arguments in the
+same order, but the third one was renamed from `$reqattrs` to `$attributes`, which matters
+if you passed it by name. `Client::send()` is private: a single call goes through
+`execute()`, a batch through the builder.
 
 Batch requests
 --------------
@@ -196,7 +204,7 @@ $client = new Client($url, new HttpClient($url, new Psr18Transport($psr18Client)
 | 1.x | 2.0 |
 |---|---|
 | `withDebug()` | `withLogger($psr3Logger)` |
-| `addOption($option, $value)` / `setOptions($options)` | `withTransportOptions([$option => $value])` |
+| `addOption($option, $value)` / `setOptions($options)` | `withTransportOptions([$option => $value])`, which always merges: there is no way to clear what was set |
 | `withSslLocalCert($path)` | `withCaFile($path)` or `withLocalCert($path)` |
 | `withHeaders(['Name: value'])` | `withHeaders(['Name' => 'value'])` |
 | `withCookies()` returned `void` | returns `$this` |
@@ -237,9 +245,20 @@ Behaviour changes
 | Batch size limit | unlimited | **100** — `withBatchLimit(0)` for no limit |
 | Request made only of notifications | HTTP 200, empty body | **HTTP 204**, empty body |
 | Errors raised by PHP (`TypeError`, ...) | fatal error | caught, answered as `-32603` |
+| Parameters of the wrong type | coerced when possible | `-32602 Invalid params` |
+| A request carrying `"id": null` | treated as a notification, no answer | answered, as the specification requires |
+| A payload that is a bare JSON scalar | `-32700` | `-32600`, it parsed but is not a request |
 | `HostValidator` | IPv4 only | IPv4 and IPv6, including CIDR ranges |
 | Request ids | `mt_rand()` | `random_int()`, through an injectable generator |
 | Masked `-32602` responses | leaked the message in `data` | `data` suppressed while masking is on |
+| A 500 carrying a JSON-RPC error object | `ServerErrorException` | the error object is relayed, so the code and message survive |
+| An answer carrying another request's id | returned as the result | `ResponseException` |
+| An answer with neither a result nor an error | returned as `null` | `InvalidJsonRpcFormatException` |
+| A per-request header with a line break | sent as-is | `InvalidArgumentException` |
+| A cookie value with a control character or a `;` | sent as-is | refused, and skipped when the server sets it |
+| A response shorter than its `Content-Length` | accepted on the stream transport | `ConnectionFailureException`, as on the others |
+| `authentication($user, '0')` | no `Authorization` header, the `'0'` was dropped | sent |
+| Default `User-Agent` | `... <https://github.com/fguillot/JsonRPC>` | `... <https://github.com/matasarei/json-rpc>` |
 
 Removed classes
 ---------------
@@ -255,7 +274,9 @@ Removed classes
 | `JsonRPC\Logger\ErrorLogLogger` | any PSR-3 logger |
 
 `HostValidator` and `UserValidator` are still there but are instance classes with instance
-methods, not static utilities. All the `static create()` factories are gone: construct the
+methods, not static utilities; `HostValidator::ipMatch()` and `netMatch()` are gone, their
+work happens inside `validate()`. `Server::withLocalException()` takes a class name only,
+where 1.x also accepted an exception instance. All the `static create()` factories are gone: construct the
 objects.
 
 Two classes kept their name but not their API, because they are building blocks the client
@@ -264,4 +285,4 @@ uses rather than things most applications call directly:
 | Class | 1.x | 2.0 |
 |---|---|---|
 | `Request\RequestBuilder` | `create()->withProcedure()->withParams()->withId()->withRequestAttributes()->asNotification()->build()`, returning a JSON string | `build($procedure, $params, $attributes, $id)` and `buildNotification($procedure, $params, $attributes)`, returning arrays |
-| `Response\ResponseParser` | `create()->withReturnException()->withPayload()->parse()` | `parse($payload)` and `parseBatch($payload, $expectedIds)` |
+| `Response\ResponseParser` | `create()->withReturnException()->withPayload()->parse()` | `parse($payload, $expectedId = null)` and `parseBatch($payload, $expectedIds)` |
