@@ -16,21 +16,27 @@ This repository is the maintained continuation of the original
 [fguillot/JsonRPC](https://packagist.org/packages/fguillot/json-rpc) library, which was
 abandoned and removed from GitHub by its original author. The package keeps its original
 name `fguillot/json-rpc` on Packagist so existing installations keep working; this
-repository (`matasarei/json-rpc`) is the canonical source. The library is in maintenance
-mode: it receives bug fixes, security fixes and compatibility updates for new PHP versions.
+repository (`matasarei/json-rpc`) is the canonical source.
+
+**Version 2.0 is a rewrite.** The API kept its shape, but there are breaking changes:
+see [UPGRADE-2.0.md](UPGRADE-2.0.md) for the complete v1 to v2 mapping. The 1.5 branch
+still receives security fixes.
 
 Features
 --------
 
 - JSON-RPC 2.0 only
 - Client and server for batch requests and notifications
-- HTTP Basic authentication and IP-based client restrictions
+- Batch answers correlated by request id, in call order
+- Any [PSR-18](https://www.php-fig.org/psr/psr-18/) HTTP client can be plugged in, or the
+  built-in cURL and stream transports can be used without any extra dependency
+- Secure by default: internal errors masked, batch size limited, explicit method allowlists
+- HTTP Basic authentication and IP based client restrictions (IPv4 and IPv6)
 - Custom middleware
-- PSR-3 logging of requests and responses (with credential redaction)
-- No hard runtime dependency beyond `ext-json` and `psr/log`
-- Works with the `curl` extension or, as a fallback, plain PHP streams
-- Fully unit tested, statically analysed (PHPStan) and PSR-12 compliant
-- Requires PHP 8.0+
+- PSR-3 logging of requests and responses, with credential redaction
+- Framework friendly: the server takes a request object and returns a response object
+- `declare(strict_types=1)` everywhere, PHPStan at max level, 100% test coverage
+- Requires PHP 8.4+
 - License: MIT
 
 Contributors
@@ -42,9 +48,11 @@ Contributors
 Requirements
 ------------
 
-- PHP 8.0 or later
-- `ext-json`
-- `ext-curl` is optional; when it is not available the client transparently falls back to PHP streams
+- PHP 8.4 or later
+- `psr/log` 3.0
+- `ext-curl` is optional; without it the client falls back to PHP streams
+- `psr/http-client` and `psr/http-factory` are optional, and only needed to send requests
+  through a PSR-18 client
 
 Installation with Composer
 --------------------------
@@ -52,457 +60,307 @@ Installation with Composer
 composer require fguillot/json-rpc
 ```
 
-Examples
---------
+Table of contents
+-----------------
 
 - [Server](#server)
+- [Server inside a framework](#server-inside-a-framework)
 - [Client](#client)
 - [Client batch requests](#client-batch-requests)
 - [Client notifications](#client-notifications)
 - [Client exceptions](#client-exceptions)
+- [Using another HTTP client](#using-another-http-client)
 - [Client logging and debugging](#client-logging-and-debugging)
 - [IP based client restrictions](#ip-based-client-restrictions)
 - [HTTP Basic Authentication](#http-basic-authentication)
-- [Local Exceptions](#local-exceptions)
-- [Production hardening](#production-hardening)
+- [Middleware](#middleware)
+- [Local exceptions](#local-exceptions)
+- [Security defaults](#security-defaults)
 - [Callback before client request](#callback-before-client-request)
-
-### Symfony
-* https://github.com/matasarei/json-rpc-demo
-
+- [Development](#development)
 
 ### Server
 
-Callback binding:
-
 ```php
-<?php
-
 use JsonRPC\Server;
 
 $server = new Server();
+
 $server->getProcedureHandler()
-    ->withCallback('addition', function ($a, $b) {
-        return $a + $b;
-    })
-    ->withCallback('random', function ($start, $end) {
-        return mt_rand($start, $end);
-    })
-;
+    ->withCallback('addition', fn(int $a, int $b): int => $a + $b)
+    ->withCallback('random', fn(int $start, int $end): int => random_int($start, $end));
 
-echo $server->execute();
+$server->execute()->send();
 ```
 
-Callback binding from array:
+`execute()` returns a `ServerResponse`; `send()` writes the status line, the headers and
+the body out. Procedures can also be methods of a class:
 
 ```php
-<?php
-
-use JsonRPC\Server;
-
-$callbacks = [
-    'getA' => function() { return 'A'; },
-    'getB' => function() { return 'B'; },
-    'getC' => function() { return 'C'; }
-];
-
-$server = new Server();
-$server->getProcedureHandler()->withCallbackArray($callbacks);
-
-echo $server->execute();
-```
-
-Class/Method binding:
-
-```php
-<?php
-
-use JsonRPC\Server;
-
 class Api
 {
-    public function doSomething($arg1, $arg2 = 3)
+    public function doSomething(string $arg): string
     {
-        return $arg1 + $arg2;
+        return strtoupper($arg);
     }
 }
 
-$server = new Server();
-$procedureHandler = $server->getProcedureHandler();
+// Bind one method to a procedure name, the class is instantiated when called
+$server->getProcedureHandler()->withClassAndMethod('doSomething', Api::class);
 
-// Bind the method Api::doSomething() to the procedure myProcedure
-$procedureHandler->withClassAndMethod('myProcedure', 'Api', 'doSomething');
-
-// Use a class instance instead of the class name
-$procedureHandler->withClassAndMethod('mySecondProcedure', new Api, 'doSomething');
-
-// The procedure and the method are the same
-$procedureHandler->withClassAndMethod('doSomething', 'Api');
-
-// Attach the class, the client will be able to call directly Api::doSomething()
-$procedureHandler->withObject(new Api());
-
-echo $server->execute();
+// Or bind an instance, listing the methods that become procedures
+$server->getProcedureHandler()->withObject(new Api(), ['doSomething']);
 ```
 
-Class/Method binding from array:
+Unlike v1, the methods of an object have to be listed: only what you name is reachable.
+When a class is registered by name it is instantiated with `new`, unless you say how:
 
 ```php
-<?php
-
-use JsonRPC\Server;
-
-class MathApi
-{
-    public function addition($arg1, $arg2)
-    {
-        return $arg1 + $arg2;
-    }
-
-    public function subtraction($arg1, $arg2)
-    {
-        return $arg1 - $arg2;
-    }
-
-    public function multiplication($arg1, $arg2)
-    {
-        return $arg1 * $arg2;
-    }
-
-    public function division($arg1, $arg2)
-    {
-        return $arg1 / $arg2;
-    }
-}
-
-$callbacks = [
-    'addition'       => [ 'MathApi', addition ],
-    'subtraction'    => [ 'MathApi', subtraction ],
-    'multiplication' => [ 'MathApi', multiplication ,
-    'division'       => [ 'MathApi', division ],
-];
-
-$server = new Server();
-$server->getProcedureHandler()->withClassAndMethodArray($callbacks);
-
-echo $server->execute();
+$server->getProcedureHandler()->withInstanceFactory($container->get(...));
 ```
 
-Server Middleware:
+A method called before every procedure of an object can be registered with
+`withBeforeMethod('beforeProcedure')`; it receives the procedure name.
 
-Middleware might be used to authenticate and authorize the client.
-They are executed before each procedure.
+### Server inside a framework
+
+The server never reads `php://input` or calls `header()` on its own when you hand it a
+request, so it drops into a controller:
 
 ```php
-<?php
+use JsonRPC\Server\ServerRequest;
 
-use JsonRPC\Server;
-use JsonRPC\MiddlewareInterface;
-use JsonRPC\Exception\AuthenticationFailureException;
-
-class Api
+// Symfony
+public function rpc(Request $request, Server $server): Response
 {
-    public function doSomething($arg1, $arg2 = 3)
-    {
-        return $arg1 + $arg2;
-    }
-}
+    $rpcResponse = $server->execute(
+        ServerRequest::fromString($request->getContent(), $request->server->all()),
+    );
 
-class MyMiddleware implements MiddlewareInterface
-{
-    public function execute($username, $password, $procedureName)
-    {
-        if ($username !== 'foobar') {
-            throw new AuthenticationFailureException('Wrong credentials!');
-        }
-    }
+    return new Response($rpcResponse->body, $rpcResponse->statusCode, $rpcResponse->headers);
 }
-
-$server = new Server();
-$server->getMiddlewareHandler()->withMiddleware(new MyMiddleware());
-$server->getProcedureHandler()->withObject(new Api());
-echo $server->execute();
 ```
 
-You can raise a `AuthenticationFailureException` when the API credentials are wrong or a `AccessDeniedException` when the user is not allowed to access to the procedure.
+A [demo application](https://github.com/matasarei/json-rpc-demo) is available.
 
 ### Client
 
-Example with positional parameters:
-
 ```php
-<?php
-
 use JsonRPC\Client;
 
 $client = new Client('http://localhost/server.php');
-$result = $client->execute('addition', [3, 5]);
+
+// Named arguments
+$result = $client->random(['start' => 1, 'end' => 100]);
+
+// Positional arguments
+$result = $client->execute('random', [1, 100]);
 ```
 
-Example with named arguments:
+To always send positional arguments, even when a single array is passed:
 
 ```php
-<?php
-
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-$result = $client->execute('random', ['end' => 10, 'start' => 1]);
-```
-
-Arguments are called in the right order.
-
-Examples with the magic method `__call()`:
-
-```php
-<?php
-
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-$result = $client->random(50, 100);
-```
-
-The example above use positional arguments for the request and this one use named arguments:
-
-```php
-$result = $client->random(['end' => 10, 'start' => 1]);
+$client = (new Client('http://localhost/server.php'))->withPositionalArguments();
 ```
 
 ### Client batch requests
 
-Call several procedures in a single HTTP request:
-
 ```php
-<?php
-
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-
 $results = $client->batch()
-                  ->foo(['arg1' => 'bar'])
-                  ->random(1, 100)
-                  ->add(4, 3)
-                  ->execute('add', [2, 5])
-                  ->send();
+    ->random(1, 100)
+    ->add(4, 3)
+    ->send();
 
-print_r($results);
+// [0 => 42, 1 => 7], in the order the calls were made
 ```
 
-All results are stored at the same position of the call.
+Answers are matched to calls by request id, so a server answering out of order (which the
+specification allows) no longer mixes up results. A batch builder is single use: call
+`batch()` again for a new one.
+
+When at least one call of a batch fails, `send()` throws `BatchFailedException`, which
+carries everything the batch produced:
+
+```php
+use JsonRPC\Exception\BatchFailedException;
+
+try {
+    $results = $client->batch()->add(4, 3)->missing()->send();
+} catch (BatchFailedException $e) {
+    $e->getResults(); // [0 => 7]              results of the calls that succeeded
+    $e->getErrors();  // [1 => MethodNotFoundException]  keyed by call position
+}
+```
 
 ### Client notifications
 
-A notification is a request without an `id` member: the server executes the
-procedure but does not send any response back.
+A notification is a call without an id: the server must not answer it.
 
 ```php
-<?php
+$client->notify('add_user', ['name' => 'Bob']);
 
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-$client->notify('logEvent', ['event' => 'user_login']);
-```
-
-Notifications can also be mixed into a batch request; only the regular calls
-produce results:
-
-```php
-$results = $client->batch()
-                  ->execute('add', [2, 5])
-                  ->notify('logEvent', ['event' => 'addition'])
-                  ->send();
+$client->batch()
+    ->notify('add_user', ['name' => 'Bob'])
+    ->notify('add_user', ['name' => 'Alice'])
+    ->send();
 ```
 
 ### Client exceptions
 
-Client exceptions are normally thrown when an error is returned by the server. You can change this behaviour by
-using the `$returnException` argument which causes exceptions to be returned. This can be extremely useful when
-executing the batch request. 
+Every exception thrown by the library implements `JsonRPC\Exception\JsonRpcException`.
 
-- `BadFunctionCallException`: Procedure not found on the server
-- `InvalidArgumentException`: Wrong procedure arguments
-- `JsonRPC\Exception\AccessDeniedException`: Access denied
-- `JsonRPC\Exception\ConnectionFailureException`: Connection failure
-- `JsonRPC\Exception\ServerErrorException`: Internal server error
+| Exception | Raised when |
+|---|---|
+| `ConnectionFailureException` | the request did not complete, or the server answered 404 |
+| `AccessDeniedException` | the server answered 401 or 403 |
+| `ServerErrorException` | the server answered 500 |
+| `MethodNotFoundException` | error code -32601 (extends `BadFunctionCallException`) |
+| `InvalidParamsException` | error code -32602 (extends `InvalidArgumentException`) |
+| `InvalidJsonFormatException` | error code -32700, or an answer that is not JSON |
+| `InvalidJsonRpcFormatException` | error code -32600 |
+| `ResponseException` | any other error object; `getData()` returns its data member |
+| `BatchFailedException` | at least one call of a batch failed |
+
+### Using another HTTP client
+
+The bytes go over the wire through a `TransportInterface`. cURL is used when the
+extension is available and PHP streams otherwise, but any PSR-18 client can be injected
+instead:
+
+```php
+use JsonRPC\Client;
+use JsonRPC\HttpClient;
+use JsonRPC\Transport\Psr18Transport;
+use Symfony\Component\HttpClient\Psr18Client;
+
+$url = 'http://localhost/server.php';
+
+// Symfony's Psr18Client also implements the PSR-17 factories
+$client = new Client($url, new HttpClient($url, new Psr18Transport(new Psr18Client())));
+
+// Clients that do not, such as Guzzle, take the factories separately
+$client = new Client($url, new HttpClient($url, new Psr18Transport(
+    new GuzzleHttp\Client(),
+    new Nyholm\Psr7\Factory\Psr17Factory(),
+    new Nyholm\Psr7\Factory\Psr17Factory(),
+)));
+```
+
+Authentication, cookies, logging and error handling work the same on every transport.
+Connection settings apply to the built-in transports:
+
+```php
+$client->getHttpClient()
+    ->withTimeout(5)            // connection timeout in seconds
+    ->withExecutionTimeout(30)  // total transfer timeout, 0 for no limit
+    ->withCaFile('/path/to/ca-bundle.pem')
+    ->withLocalCert('/path/to/client-certificate.pem')
+    ->withTransportOptions([CURLOPT_INTERFACE => 'eth0']);
+```
 
 ### Client logging and debugging
 
-The HTTP client accepts any [PSR-3](https://www.php-fig.org/psr/psr-3/) logger and
-logs the JSON request and response (with `debug` level) through it:
-
 ```php
-<?php
-
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-$client->getHttpClient()->withLogger($myPsr3Logger); // e.g. a Monolog instance
+$client->getHttpClient()->withLogger($anyPsr3Logger);
 ```
 
-Sensitive headers (`Authorization`, `Cookie`, `Proxy-Authorization`) are redacted
-before logging.
-
-If you do not use a logging framework, the legacy debug mode writes the same
-messages to the PHP system logger (configurable via `error_log` in `php.ini`):
-
-```php
-$client->getHttpClient()->withDebug(); // deprecated, prefer withLogger()
-```
+Requests and responses are logged at debug level. `Authorization`, `Cookie`, `Set-Cookie`
+and `Proxy-Authorization` values are replaced by `[redacted]`.
 
 ### IP based client restrictions
 
-The server can allow only some IP addresses:
-
 ```php
-<?php
-
-use JsonRPC\Server;
-
-$server = new Server;
-
-// IP client restrictions
-$server->allowHosts(['192.168.0.1', '127.0.0.1']);
-
-...
-
-// Return the response to the client
-echo $server->execute();
+$server->allowHosts(['192.168.1.10', '10.0.0.0/8', '2001:db8::/32', '::1']);
 ```
 
-If the client is blocked, you got a 403 Forbidden HTTP response.
+Clients that do not match get a 403 answer. Addresses and ranges can be IPv4 or IPv6;
+anything that cannot be parsed never matches.
 
 ### HTTP Basic Authentication
 
-If you use HTTPS, you can allow client by using a username/password.
-
 ```php
-<?php
+// Server
+$server->authentication(['alice' => 'p4ssw0rd', 'bob' => 'sup3rs3cr3t']);
 
-use JsonRPC\Server;
-
-$server = new Server;
-
-// List of users to allow
-$server->authentication(['user1' => 'password1', 'user2' => 'password2']);
-
-...
-
-// Return the response to the client
-echo $server->execute();
+// Client
+$client->authentication('alice', 'p4ssw0rd');
 ```
 
-On the client, set credentials like that:
+Requests without valid credentials are answered with 401 and a `WWW-Authenticate` header.
+When the web server does not forward the `Authorization` header, read the credentials
+from another one:
 
 ```php
-<?php
-
-use JsonRPC\Client;
-
-$client = new Client('http://localhost/server.php');
-$client->getHttpClient()
-    ->withUsername('Foo')
-    ->withPassword('Bar');
+$server->withAuthenticationHeader('X-Authorization');
 ```
 
-If the authentication failed, the client throw a RuntimeException.
+### Middleware
 
-Using an alternative authentication header:
+Middleware runs before the procedure and rejects the call by throwing:
 
 ```php
+use JsonRPC\Exception\AccessDeniedException;
+use JsonRPC\MiddlewareInterface;
 
-use JsonRPC\Server;
+final class AuthMiddleware implements MiddlewareInterface
+{
+    public function execute(?string $username, ?string $password, string $procedureName): void
+    {
+        if (!$this->acl->isAllowed($username, $procedureName)) {
+            throw new AccessDeniedException('Not allowed');
+        }
+    }
+}
 
-$server = new Server();
-$server->setAuthenticationHeader('X-Authentication');
-$server->authentication(['myusername' => 'mypassword']);
+$server->getMiddlewareHandler()->withMiddleware(new AuthMiddleware());
 ```
 
-The example above will use the HTTP header `X-Authentication` instead of the standard `Authorization: Basic [BASE64_CREDENTIALS]`.
-The username/password values need be encoded in base64: `base64_encode('username:password')`.
+### Local exceptions
 
-### Local Exceptions
-
-By default, the server will relay all exceptions to the client.
-If you would like to relay only some of them, use the method `Server::withLocalException($exception)`:
+An exception registered as local is not turned into a JSON-RPC error: it is thrown out of
+`execute()` for the application to handle.
 
 ```php
-<?php
-
-use JsonRPC\Server;
-class MyException1 extends Exception {};
-class MyException2 extends Exception {};
-
-$server = new Server();
-
-// Exceptions that should NOT be relayed to the client, if they occurs
-$server
-    ->withLocalException('MyException1')
-    ->withLocalException('MyException2')
-;
-
-...
-
-echo $server->execute();
+$server->withLocalException(MyDomainException::class);
 ```
 
-### Production hardening
+`AuthenticationFailureException` and `AccessDeniedException` are always handled by the
+server itself, as 401 and 403.
 
-Two opt-in server options are recommended when exposing the server publicly. Both default
-to the previous behaviour, so they never change existing deployments unless you enable them.
+### Security defaults
 
-Hide internal exception details from clients — any exception that is not a JSON-RPC exception
-(and not registered as a local exception) is returned as a generic `-32603 Internal error`
-instead of leaking its message (database errors, file paths, stack context):
+Version 2 is secure by default; each of these can be adjusted.
 
-```php
-<?php
+| Default | Meaning | To change |
+|---|---|---|
+| Internal error masking is **on** | Exceptions the library does not recognize become a generic `-32603 Internal error`, so database errors and file paths do not reach clients | `withInternalErrorMasking(false)` |
+| Batch limit is **100** | Larger batches are rejected with `-32600` | `withBatchLimit(0)` for no limit |
+| Objects expose only listed methods | `withObject($instance, ['a', 'b'])` publishes exactly those two | list more methods |
+| Redirects are never followed | A redirect would resend the `Authorization` and `Cookie` headers to the new location | not configurable |
 
-use JsonRPC\Server;
-
-$server = new Server();
-$server->withInternalErrorMasking();
-```
-
-You can still return intentional, client-facing errors by throwing
-`JsonRPC\Exception\ResponseException`, which carries its own message, code and data.
-
-Limit the number of calls accepted in a single batch to mitigate denial-of-service; larger
-batches are rejected with `-32600 Invalid Request`:
-
-```php
-$server->withBatchLimit(50);
-```
-
-See [SECURITY.md](SECURITY.md) for the full security model and hardening guidance.
+See [SECURITY.md](SECURITY.md) for the full security model.
 
 ### Callback before client request
 
-You can use a callback to change the HTTP headers or the URL before to make the request to the server.
-
-Example:
-
 ```php
-<?php
-
-$client = new Client();
-$client->getHttpClient()->withBeforeRequestCallback(function(HttpClient $client, $payload) {
-    $client->withHeaders(['Content-Length: '.strlen($payload)]);
-});
-
-$client->myProcedure(123);
+$client->getHttpClient()->withBeforeRequestCallback(
+    function (HttpClient $client, string $payload, array $headers): void {
+        $client->withHeaders(['X-Request-Id' => bin2hex(random_bytes(8))]);
+    },
+);
 ```
 
-Development
------------
+### Development
 
-Install the dependencies and run the checks:
+Everything runs through composer scripts:
 
 ```bash
-composer install
-vendor/bin/phpunit                            # unit tests
-vendor/bin/phpcs                              # coding standard (PSR-12)
-vendor/bin/phpstan analyse --memory-limit=512M # static analysis
+composer test      # PHPUnit
+composer lint      # phpcs, PSR-12
+composer stan      # PHPStan, max level
+composer check     # all three
+composer coverage  # PHPUnit with coverage, fails below 100%
 ```
+
+The transport tests talk to a PHP built-in web server started by the suite, so no
+network access is required.
