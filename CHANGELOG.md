@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.5.1 (unreleased)
+## v1.5.1 (2026-10-26)
 
 ### Fixed
 - `composer.json` is included in the dist archives again. `.gitattributes` excluded
