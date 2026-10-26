@@ -32,7 +32,7 @@ final class CookieJarTest extends TestCase
     {
         $jar = new CookieJar();
         $jar->store([
-            'session=abc=def; Path=/; HttpOnly; Expires=Wed, 21 Oct 2026 07:28:00 GMT',
+            'session=abc=def; Path=/; HttpOnly; Expires=Tue, 01 Jan 2999 00:00:00 GMT',
             "theme=dark\r\n",
         ]);
 
