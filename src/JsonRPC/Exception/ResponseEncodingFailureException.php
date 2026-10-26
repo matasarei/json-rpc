@@ -1,12 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
 /**
- * Class ResponseEncodingFailureException
- *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * The response could not be encoded to JSON.
  */
 class ResponseEncodingFailureException extends RpcCallFailedException
 {

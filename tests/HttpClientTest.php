@@ -1,371 +1,575 @@
 <?php
 
-namespace JsonRPC;
+declare(strict_types=1);
 
+namespace JsonRPC\Tests;
+
+use JsonRPC\Exception\AccessDeniedException;
+use JsonRPC\Exception\ConnectionFailureException;
+use JsonRPC\Exception\ResponseException;
+use JsonRPC\Exception\ServerErrorException;
+use JsonRPC\HttpClient;
+use JsonRPC\Tests\Doubles\FakeTransport;
+use JsonRPC\Tests\Doubles\RecordingTransportFactory;
+use JsonRPC\Tests\Doubles\SpyLogger;
+use JsonRPC\Transport\CookieJar;
+use JsonRPC\Transport\CurlTransport;
+use JsonRPC\Transport\TransportResponse;
+use LogicException;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../vendor/autoload.php';
-
-defined('CURLOPT_URL') || define('CURLOPT_URL', 10002);
-defined('CURLOPT_RETURNTRANSFER') || define('CURLOPT_RETURNTRANSFER', 19913);
-defined('CURLOPT_CONNECTTIMEOUT') || define('CURLOPT_CONNECTTIMEOUT', 78);
-defined('CURLOPT_TIMEOUT') || define('CURLOPT_TIMEOUT', 13);
-defined('CURLOPT_FOLLOWLOCATION') || define('CURLOPT_FOLLOWLOCATION', 52);
-defined('CURLOPT_MAXREDIRS') || define('CURLOPT_MAXREDIRS', 68);
-defined('CURLOPT_SSL_VERIFYPEER') || define('CURLOPT_SSL_VERIFYPEER', 64);
-defined('CURLOPT_POST') || define('CURLOPT_POST', 47);
-defined('CURLOPT_POSTFIELDS') || define('CURLOPT_POSTFIELDS', 10015);
-defined('CURLOPT_HTTPHEADER') || define('CURLOPT_HTTPHEADER', 10023);
-defined('CURLOPT_HEADERFUNCTION') || define('CURLOPT_HEADERFUNCTION', 20079);
-defined('CURLOPT_CAINFO') || define('CURLOPT_CAINFO', 10065);
-defined('CURLE_OPERATION_TIMEDOUT') || define('CURLE_OPERATION_TIMEDOUT', 28);
-
-function extension_loaded($extension)
+#[CoversClass(HttpClient::class)]
+final class HttpClientTest extends TestCase
 {
-    return HttpClientTest::$functions->extension_loaded($extension);
-}
-
-function fopen($url, $mode, $use_include_path, $context)
-{
-    return HttpClientTest::$functions->fopen($url, $mode, $use_include_path, $context);
-}
-
-function stream_context_create(array $params)
-{
-    return HttpClientTest::$functions->stream_context_create($params);
-}
-
-function curl_init()
-{
-    return HttpClientTest::$functions->curl_init();
-}
-
-function curl_setopt_array($ch, array $params)
-{
-    HttpClientTest::$functions->curl_setopt_array($ch, $params);
-}
-
-function curl_setopt($ch, $option, $value)
-{
-    HttpClientTest::$functions->curl_setopt($ch, $option, $value);
-}
-
-function curl_exec($ch)
-{
-    return HttpClientTest::$functions->curl_exec($ch);
-}
-
-function curl_errno($ch)
-{
-    return HttpClientTest::$functions->curl_errno($ch);
-}
-
-function curl_getinfo($ch, $option)
-{
-    HttpClientTest::$functions->curl_getinfo($ch, $option);
-}
-
-class TestableHttpClient extends HttpClient
-{
-    public function parseCookiesFromHeaders(array $headers)
+    public function testSendsThePayloadToTheConfiguredUrlAndDecodesTheAnswer(): void
     {
-        $this->parseCookies($headers);
+        $transport = FakeTransport::withJson(['jsonrpc' => '2.0', 'result' => 'pong', 'id' => 1]);
+        $client = new HttpClient('https://example.com/rpc', $transport);
+
+        $result = $client->execute('{"jsonrpc":"2.0","method":"ping","id":1}');
+
+        $this->assertSame(['jsonrpc' => '2.0', 'result' => 'pong', 'id' => 1], $result);
+        $this->assertSame('https://example.com/rpc', $transport->lastRequest()->url);
+        $this->assertSame('{"jsonrpc":"2.0","method":"ping","id":1}', $transport->lastRequest()->body);
     }
 
-    public function redactHeadersPublic(array $headers)
+    public function testSendsTheDefaultHeaders(): void
     {
-        return $this->redactHeaders($headers);
-    }
-}
+        $transport = FakeTransport::withJson([]);
 
-class HttpClientTest extends TestCase
-{
-    public static $functions;
+        (new HttpClient('https://example.com/rpc', $transport))->execute('{}');
 
-    protected function setUp(): void
-    {
-        self::$functions = $this
-            ->getMockBuilder('stdClass')
-            ->addMethods([
-                'extension_loaded', 'fopen', 'stream_context_create', 'curl_getinfo',
-                'curl_init', 'curl_setopt_array', 'curl_setopt', 'curl_exec', 'curl_errno',
-            ])
-            ->getMock();
+        $this->assertSame([
+            'User-Agent' => 'JSON-RPC PHP Client <https://github.com/matasarei/json-rpc>',
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Connection' => 'close',
+        ], $transport->lastRequest()->headers);
     }
 
-    public function testWithServerError()
+    public function testMergesInstanceAndPerRequestHeaders(): void
     {
-        $this->expectException('\JsonRPC\Exception\ServerErrorException');
+        $transport = FakeTransport::withJson([]);
+        $client = (new HttpClient('https://example.com/rpc', $transport))->withHeaders(['X-Instance' => 'a']);
 
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/1.0 301 Moved Permanently',
-            'Connection: close',
-            'HTTP/1.1 500 Internal Server Error',
-                                      ]);
+        $client->execute('{}', ['X-Request' => 'b', 'Accept' => 'application/vnd.custom']);
+
+        $headers = $transport->lastRequest()->headers;
+        $this->assertSame('a', $headers['X-Instance']);
+        $this->assertSame('b', $headers['X-Request']);
+        $this->assertSame('application/vnd.custom', $headers['Accept']);
     }
 
-    public function testWithConnectionFailure()
+    public function testACallerHeaderReplacesADefaultThatOnlyDiffersInCase(): void
     {
-        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
+        $transport = new FakeTransport(new TransportResponse(200, '{}'), new TransportResponse(200, '{}'));
+        $client = new HttpClient('https://example.com/rpc', $transport);
 
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/1.1 404 Not Found',
-                                      ]);
+        $client->execute('{}', ['content-type' => 'application/json-rpc']);
+        $headers = $transport->lastRequest()->headers;
+        $this->assertSame(['content-type' => 'application/json-rpc'], array_filter(
+            $headers,
+            static fn(string $name): bool => strcasecmp($name, 'Content-Type') === 0,
+            ARRAY_FILTER_USE_KEY,
+        ));
+
+        $client->withHeaders(['ACCEPT' => 'application/vnd.custom+json'])->execute('{}');
+        $headers = $transport->lastRequest()->headers;
+        $this->assertSame(['ACCEPT' => 'application/vnd.custom+json'], array_filter(
+            $headers,
+            static fn(string $name): bool => strcasecmp($name, 'Accept') === 0,
+            ARRAY_FILTER_USE_KEY,
+        ));
     }
 
-    public function testWithAccessForbidden()
+    public function testACallerHeaderReplacesTheGeneratedCredentialsInsteadOfDoublingThem(): void
     {
-        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
+        $transport = new FakeTransport(new TransportResponse(200, '{}'), new TransportResponse(200, '{}'));
+        $client = (new HttpClient('https://example.com/rpc', $transport))
+            ->withUsername('user')
+            ->withPassword('pass')
+            ->withCookies(['jar' => 'yes']);
 
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/1.1 403 Forbidden',
-                                      ]);
+        $client->execute('{}');
+        $this->assertSame('Basic ' . base64_encode('user:pass'), $transport->lastRequest()->headers['Authorization']);
+        $this->assertSame('jar=yes', $transport->lastRequest()->headers['Cookie']);
+
+        $client->execute('{}', ['authorization' => 'Bearer token', 'cookie' => 'mine=1']);
+        $headers = $transport->lastRequest()->headers;
+
+        $this->assertSame(['authorization' => 'Bearer token', 'cookie' => 'mine=1'], array_filter(
+            $headers,
+            static fn(string $name): bool => in_array(strtolower($name), ['authorization', 'cookie'], true),
+            ARRAY_FILTER_USE_KEY,
+        ));
     }
 
-    public function testWithAccessNotAllowed()
+    public function testConnectionSettingsChangedAfterACallReachTheTransport(): void
     {
-        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
+        $factory = new RecordingTransportFactory(new FakeTransport(
+            new TransportResponse(200, '{}'),
+            new TransportResponse(200, '{}'),
+        ));
+        $client = new HttpClient('https://example.com/rpc', null, new CookieJar(), $factory);
 
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/1.0 401 Unauthorized',
-                                      ]);
+        $client->execute('{}');
+        $this->assertSame(5, $factory->usedOptions()->connectTimeout);
+
+        $client->withTimeout(30)->withCaFile('/ca.pem')->execute('{}');
+
+        $this->assertSame(2, $factory->calls);
+        $this->assertSame(30, $factory->usedOptions()->connectTimeout);
+        $this->assertSame('/ca.pem', $factory->usedOptions()->caFile);
     }
 
-    public function testWithHttp2ServerError()
+    public function testSendsBasicAuthenticationOnlyWhenBothCredentialsAreSet(): void
     {
-        $this->expectException('\JsonRPC\Exception\ServerErrorException');
-
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/2 500',
-        ]);
-    }
-
-    public function testWithHttp2AccessForbidden()
-    {
-        $this->expectException('\JsonRPC\Exception\AccessDeniedException');
-
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/2 403',
-        ]);
-    }
-
-    public function testWithHttp2UnexpectedErrorWithoutReasonPhrase()
-    {
-        $this->expectException('\JsonRPC\Exception\ResponseException');
-
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/2 429',
-        ]);
-    }
-
-    public function testUnexpectedErrorIsIgnoredForJsonResponse()
-    {
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions(['HTTP/2 429'], true);
-        $httpClient->handleExceptions(['HTTP/1.1 429 Too Many Requests'], true);
-
-        $this->addToAssertionCount(1);
-    }
-
-    public function testRedactHeadersHidesCredentialValues()
-    {
-        $httpClient = new TestableHttpClient();
-
-        $this->assertSame(
-            [
-                'Authorization: [redacted]',
-                'Cookie: [redacted]',
-                'Set-Cookie: [redacted]',
-                'Proxy-Authorization: [redacted]',
-                'Content-Type: application/json',
-            ],
-            $httpClient->redactHeadersPublic([
-                'Authorization: Basic dXNlcjpwYXNz',
-                'Cookie: session=secret',
-                'Set-Cookie: session=secret; Path=/',
-                'Proxy-Authorization: Basic dXNlcjpwYXNz',
-                'Content-Type: application/json',
-            ])
+        $transport = new FakeTransport(
+            new TransportResponse(200, '{}'),
+            new TransportResponse(200, '{}'),
         );
+
+        $client = (new HttpClient('https://example.com/rpc', $transport))->withUsername('user');
+        $client->execute('{}');
+        $this->assertArrayNotHasKey('Authorization', $transport->lastRequest()->headers);
+
+        $client->withPassword('pass')->execute('{}');
+        $this->assertSame('Basic ' . base64_encode('user:pass'), $transport->lastRequest()->headers['Authorization']);
     }
 
-    public function testRedirectResponseIsReportedAsError()
+    public function testSendsAndCollectsCookies(): void
     {
-        $this->expectException('\JsonRPC\Exception\ResponseException');
+        $transport = new FakeTransport(
+            new TransportResponse(200, '{}', ['set-cookie' => ['session=abc=def; Path=/', 'theme=dark']]),
+            new TransportResponse(200, '{}'),
+        );
+        $client = new HttpClient('https://example.com/rpc', $transport);
 
-        $httpClient = new HttpClient();
-        $httpClient->handleExceptions([
-            'HTTP/1.1 301 Moved Permanently',
-            'Location: https://example.com/new',
-        ]);
+        $client->execute('{}');
+        $this->assertSame(['session' => 'abc=def', 'theme' => 'dark'], $client->getCookies());
+
+        $client->execute('{}');
+        $this->assertSame('session=abc=def; theme=dark', $transport->lastRequest()->headers['Cookie']);
     }
 
-    public function testParseCookiesIgnoresAttributesAndKeepsEqualSigns()
+    public function testCookiesCanBeSeededAndReplaced(): void
     {
-        $httpClient = new TestableHttpClient();
-        $httpClient->parseCookiesFromHeaders([
-            'Set-Cookie: session=abc=def; Path=/; HttpOnly; Expires=Wed, 21 Oct 2026 07:28:00 GMT',
-            "Set-Cookie: token=xyz\r\n",
-        ]);
+        $transport = FakeTransport::withJson([]);
+        $client = new HttpClient('https://example.com/rpc', $transport);
 
-        $this->assertSame(['session' => 'abc=def', 'token' => 'xyz'], $httpClient->getCookies());
+        $client->withCookies(['a' => '1']);
+        $client->withCookies(['b' => '2']);
+        $this->assertSame(['a' => '1', 'b' => '2'], $client->getCookies());
+
+        $client->withCookies(['c' => '3'], true);
+        $this->assertSame(['c' => '3'], $client->getCookies());
     }
 
-    public function testWithCallback()
+    public function testAcceptsAPreExistingCookieJar(): void
     {
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('extension_loaded')
-            ->with('curl')
-            ->will($this->returnValue(false));
+        $jar = new CookieJar(['session' => 'abc']);
+        $transport = FakeTransport::withJson([]);
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('stream_context_create')
-            ->with([
-                'http' => [
-                    'method' => 'POST',
-                    'protocol_version' => 1.1,
-                    'timeout' => 5,
-                    'follow_location' => 0,
-                    'max_redirects' => 1,
-                    'header' => implode("\r\n", [
-                        'User-Agent: JSON-RPC PHP Client <https://github.com/fguillot/JsonRPC>',
-                        'Content-Type: application/json',
-                        'Accept: application/json',
-                        'Connection: close',
-                        'Content-Length: 4',
-                    ]),
-                    'content' => 'test',
-                    'ignore_errors' => true,
-                ],
-                'ssl' => [
-                    'verify_peer' => true,
-                    'verify_peer_name' => true,
-                ]
-            ])
-            ->will($this->returnValue('context'));
+        (new HttpClient('https://example.com/rpc', $transport, $jar))->execute('{}');
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('fopen')
-            ->with('url', 'r', false, 'context')
-            ->will($this->returnValue(false));
-
-        $httpClient = new HttpClient('url');
-        $httpClient->withBeforeRequestCallback(function (HttpClient $client, $payload) {
-            $client->withHeaders(['Content-Length: ' . strlen($payload)]);
-        });
-
-        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
-        $httpClient->execute('test');
+        $this->assertSame('session=abc', $transport->lastRequest()->headers['Cookie']);
     }
 
-    public function testWithCurl()
+    public function testCallsTheBeforeRequestCallbackWithTheRequestData(): void
     {
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('extension_loaded')
-            ->with('curl')
-            ->will($this->returnValue(true));
+        $transport = FakeTransport::withJson([]);
+        $seen = [];
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_init')
-            ->will($this->returnValue('curl'));
-
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_setopt_array')
-            ->with('curl', [
-                CURLOPT_URL => 'url',
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_CONNECTTIMEOUT => 5,
-                CURLOPT_TIMEOUT => 0,
-                CURLOPT_FOLLOWLOCATION => false,
-                CURLOPT_SSL_VERIFYPEER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => 'test',
-                CURLOPT_HTTPHEADER => [
-                    'User-Agent: JSON-RPC PHP Client <https://github.com/fguillot/JsonRPC>',
-                    'Content-Type: application/json',
-                    'Accept: application/json',
-                    'Connection: close',
-                    'Content-Length: 4',
-                ],
-                CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$headers) {
-                    $headers[] = $header;
-                    return strlen($header);
-                }
-            ]);
-
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_setopt')
-            ->with('curl', CURLOPT_CAINFO, 'test.crt');
-
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_exec')
-            ->with('curl')
-            ->will($this->returnValue(false));
-
-        $httpClient = new HttpClient('url');
-        $httpClient
-            ->withSslLocalCert('test.crt')
-            ->withBeforeRequestCallback(function (HttpClient $client, $payload) {
-                $client->withHeaders(['Content-Length: ' . strlen($payload)]);
+        $client = (new HttpClient('https://example.com/rpc', $transport))
+            ->withBeforeRequestCallback(function (HttpClient $client, string $payload, array $headers) use (&$seen): void {
+                $seen = ['payload' => $payload, 'headers' => $headers];
+                $client->withHeaders(['Content-Length' => (string) strlen($payload)]);
             });
 
+        $client->execute('{"a":1}', ['X-Request' => 'b']);
 
-        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
-        $httpClient->execute('test');
+        $this->assertSame(['payload' => '{"a":1}', 'headers' => ['X-Request' => 'b']], $seen);
+        $this->assertSame('7', $transport->lastRequest()->headers['Content-Length']);
     }
 
-    public function testWithCurlTimeout()
+    public function testReturnsNullForAnEmptyBody(): void
     {
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('extension_loaded')
-            ->with('curl')
-            ->will($this->returnValue(true));
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('', 204));
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_init')
-            ->will($this->returnValue('curl'));
+        $this->assertNull($client->execute('{}'));
+    }
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_setopt_array')
-            ->with('curl', static::callback(function (array $options) {
-                return $options[CURLOPT_CONNECTTIMEOUT] === 5 && $options[CURLOPT_TIMEOUT] === 10;
-            }));
+    public function testReturnsNullWhenTheBodyIsNotJson(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('not json'));
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_exec')
-            ->with('curl')
-            ->will($this->returnValue(false));
+        $this->assertNull($client->execute('{}'));
+    }
 
-        self::$functions
-            ->expects(static::exactly(1))
-            ->method('curl_errno')
-            ->with('curl')
-            ->will($this->returnValue(CURLE_OPERATION_TIMEDOUT));
+    /**
+     * @return list<array{int, class-string<\Throwable>}>
+     */
+    public static function failingStatusCodes(): array
+    {
+        return [
+            [401, AccessDeniedException::class],
+            [403, AccessDeniedException::class],
+            [404, ConnectionFailureException::class],
+        ];
+    }
 
-        $httpClient = new HttpClient('url');
-        $httpClient->withExecutionTimeout(10);
+    /**
+     * @param class-string<\Throwable> $exception
+     */
+    #[DataProvider('failingStatusCodes')]
+    public function testMapsTheDocumentedStatusCodesToExceptions(int $statusCode, string $exception): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson([], $statusCode));
 
-        $this->expectException('\JsonRPC\Exception\ConnectionFailureException');
+        $this->expectException($exception);
+        $this->expectExceptionMessage(sprintf('Response with status code %d', $statusCode));
+
+        $client->execute('{}');
+    }
+
+    public function testReportsAServerErrorThatCarriesSomethingOtherThanAnAnswer(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('<h1>Server Error</h1>', 500));
+
+        $this->expectException(ServerErrorException::class);
+        $this->expectExceptionMessage('Response with status code 500');
+
+        $client->execute('{}');
+    }
+
+    public function testRelaysTheErrorObjectOfAServerAnsweringWith500(): void
+    {
+        $payload = ['jsonrpc' => '2.0', 'error' => ['code' => -32000, 'message' => 'Application error'], 'id' => 1];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 500));
+
+        $this->assertSame($payload, $client->execute('{}'));
+    }
+
+    public function testRelaysTheErrorsOfABatchAnsweredWith500(): void
+    {
+        $payload = [['jsonrpc' => '2.0', 'error' => ['code' => -32000, 'message' => 'boom'], 'id' => 1]];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 500));
+
+        $this->assertSame($payload, $client->execute('{}'));
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function bodiesThatAreNotErrorObjects(): array
+    {
+        return [
+            'a result' => [['jsonrpc' => '2.0', 'result' => 'looks fine', 'id' => 1]],
+            'a page of a gateway' => [['message' => 'Internal server error']],
+            'a page with an error member of its own' => [['error' => 'upstream connect error']],
+            'a page with an error object of its own' => [['error' => ['message' => 'Bad Gateway']]],
+            'an empty array' => [[]],
+            'a list of nothing useful' => [[1, 2, 3]],
+            'a batch of pages' => [[['error' => 'upstream connect error']]],
+        ];
+    }
+
+    #[DataProvider('bodiesThatAreNotErrorObjects')]
+    public function testReportsA500ThatDoesNotCarryAnErrorObject(mixed $body): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($body, 500));
+
+        $this->expectException(ServerErrorException::class);
+        $this->expectExceptionMessage('Response with status code 500');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsAnErrorStatusWhoseJsonBodyIsNotAnAnswer(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson(['message' => 'gateway'], 502));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 502');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsABodyThatStillCarriesItsCompression(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(
+            200,
+            (string) gzencode('{"jsonrpc":"2.0","result":"pong","id":1}'),
+            ['content-encoding' => ['identity', 'gzip']],
+        ));
+        $client = new HttpClient('https://example.com/rpc', $transport);
+
+        $this->expectException(ResponseException::class);
+        // "identity" says nothing, so it is left out of the message.
+        $this->expectExceptionMessage('compressed with "gzip"');
+
+        $client->execute('{}');
+    }
+
+    /**
+     * A body a client already decompressed is judged on its bytes, not on the
+     * header it kept, whether or not those bytes are valid UTF-8.
+     */
+    public function testDoesNotBlameCompressionForABodyThatIsSimplyUnreadable(): void
+    {
+        foreach ([[], ['content-encoding' => ['identity']], ['content-encoding' => ['gzip']]] as $headers) {
+            // Latin-1 text: not valid UTF-8, and not compressed either.
+            $transport = new FakeTransport(new TransportResponse(200, "caf\xE9 is down", $headers));
+
+            $this->assertNull((new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
+        }
+    }
+
+    public function testReportsACompressedBodyEvenWithoutAHeaderSayingSo(): void
+    {
+        $body = (string) gzcompress('{"jsonrpc":"2.0","result":"pong","id":1}');
+        $client = new HttpClient('https://example.com/rpc', new FakeTransport(new TransportResponse(200, $body)));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('The response body is compressed and this client does not decode it');
+
+        $client->execute('{}');
+    }
+
+    /**
+     * A body a client already decompressed is text, whatever the header left on
+     * the response still says. The last cases start with bytes a zlib header
+     * check alone would take for compression.
+     *
+     * @return array<string, array{string}>
+     */
+    public static function bodiesThatAreNotCompressed(): array
+    {
+        return [
+            'a maintenance page' => ['<html><body>maintenance</body></html>'],
+            'broken json' => ['{"jsonrpc":"2.0",'],
+            'plain text' => ['service unavailable'],
+            'a single byte' => ['x'],
+            'text starting with x and a space' => ['x  is down'],
+            'text starting with a digit' => ['80% of the fleet is down'],
+            'text in chinese' => ['老者不在'],
+        ];
+    }
+
+    #[DataProvider('bodiesThatAreNotCompressed')]
+    public function testDoesNotBlameCompressionForABodyThatIsSimplyNotJson(string $body): void
+    {
+        $transport = new FakeTransport(new TransportResponse(200, $body, ['content-encoding' => ['gzip']]));
+
+        $this->assertNull((new HttpClient('https://example.com/rpc', $transport))->execute('{}'));
+    }
+
+    /**
+     * Clients that decompress on their own leave the header on the response
+     * they hand over already decoded.
+     */
+    public function testAcceptsAnAlreadyDecodedBodyThatStillDeclaresAnEncoding(): void
+    {
+        foreach (['gzip', 'identity'] as $encoding) {
+            $transport = new FakeTransport(new TransportResponse(
+                200,
+                '{"jsonrpc":"2.0","result":"pong","id":1}',
+                ['content-encoding' => [$encoding]],
+            ));
+
+            $this->assertSame(
+                ['jsonrpc' => '2.0', 'result' => 'pong', 'id' => 1],
+                (new HttpClient('https://example.com/rpc', $transport))->execute('{}'),
+            );
+        }
+    }
+
+    public function testReportsAnAuthenticationFailureBeforeTheBodyIsJudged(): void
+    {
+        $transport = new FakeTransport(new TransportResponse(
+            401,
+            (string) gzencode('{"error":"denied"}'),
+            ['content-encoding' => ['gzip']],
+        ));
+
+        $this->expectException(AccessDeniedException::class);
+
+        (new HttpClient('https://example.com/rpc', $transport))->execute('{}');
+    }
+
+    public function testReportsRedirectsBecauseTheyAreNeverFollowed(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('', 302));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 302');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsARedirectEvenWhenItCarriesAJsonBody(): void
+    {
+        $payload = ['jsonrpc' => '2.0', 'result' => 'moved', 'id' => 1];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 302));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 302');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsAnErrorStatusWhoseBodyIsOnlyAJsonScalar(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson('gateway timeout', 504));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 504');
+
+        $client->execute('{}');
+    }
+
+    public function testReportsUnexpectedErrorStatusCodesWithoutAJsonBody(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('too many requests', 429));
+
+        $this->expectException(ResponseException::class);
+        $this->expectExceptionMessage('Unexpected response with status code 429');
+
+        $client->execute('{}');
+    }
+
+    public function testKeepsErrorObjectsAnsweredWithAnErrorStatusCode(): void
+    {
+        $payload = ['jsonrpc' => '2.0', 'error' => ['code' => -32600, 'message' => 'Invalid Request'], 'id' => null];
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withJson($payload, 429));
+
+        $this->assertSame($payload, $client->execute('{}'));
+    }
+
+    public function testAcceptsUnusualButSuccessfulStatusCodes(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('', 299));
+
+        $this->assertNull($client->execute('{}'));
+    }
+
+    public function testAcceptsStatusCodesOutsideTheErrorRange(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::withBody('', 600));
+
+        $this->assertNull($client->execute('{}'));
+    }
+
+    public function testPropagatesTransportFailures(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', FakeTransport::failing('Operation timed out'));
+
+        $this->expectException(ConnectionFailureException::class);
         $this->expectExceptionMessage('Operation timed out');
-        $httpClient->execute('test');
+
+        $client->execute('{}');
+    }
+
+    public function testUrlCanBeChangedAfterConstruction(): void
+    {
+        $transport = FakeTransport::withJson([]);
+
+        (new HttpClient('', $transport))->withUrl('https://example.com/other')->execute('{}');
+
+        $this->assertSame('https://example.com/other', $transport->lastRequest()->url);
+    }
+
+    public function testLogsTheRequestAndTheResponseWithCredentialsRedacted(): void
+    {
+        $logger = new SpyLogger();
+        $transport = FakeTransport::withJson(
+            ['jsonrpc' => '2.0', 'result' => 'pong', 'id' => 1],
+            200,
+            ['set-cookie' => ['session=secret'], 'content-type' => ['application/json']],
+        );
+
+        (new HttpClient('https://example.com/rpc', $transport))
+            ->withUsername('user')
+            ->withPassword('pass')
+            ->withCookies(['session' => 'secret'])
+            ->withLogger($logger)
+            ->execute('{"jsonrpc":"2.0","method":"ping","id":1}');
+
+        $request = $logger->contextOf('Request');
+        $this->assertSame('https://example.com/rpc', $request['url']);
+        $this->assertSame('{"jsonrpc":"2.0","method":"ping","id":1}', $request['payload']);
+        $this->assertSame([
+            'Authorization' => '[redacted]',
+            'Cookie' => '[redacted]',
+            'User-Agent' => 'JSON-RPC PHP Client <https://github.com/matasarei/json-rpc>',
+            'Content-Type' => 'application/json',
+            'Accept' => 'application/json',
+            'Connection' => 'close',
+        ], $request['headers']);
+
+        $response = $logger->contextOf('Response');
+        $this->assertSame(200, $response['status']);
+        $this->assertSame(
+            ['set-cookie' => '[redacted]', 'content-type' => ['application/json']],
+            $response['headers'],
+        );
+        $this->assertSame('{"jsonrpc":"2.0","result":"pong","id":1}', $response['payload']);
+    }
+
+    public function testAsksTheFactoryForATransportOnceAndReusesIt(): void
+    {
+        $factory = new RecordingTransportFactory(new FakeTransport(
+            new TransportResponse(200, '{}'),
+            new TransportResponse(200, '{}'),
+        ));
+        $client = new HttpClient('https://example.com/rpc', null, new CookieJar(), $factory);
+
+        $client->execute('{}');
+        $client->execute('{}');
+
+        $this->assertSame(1, $factory->calls);
+    }
+
+    public function testAppliesConnectionSettingsToTheDefaultTransport(): void
+    {
+        $factory = new RecordingTransportFactory(FakeTransport::withJson([]));
+
+        (new HttpClient('https://example.com/rpc', null, new CookieJar(), $factory))
+            ->withTimeout(1)
+            ->withExecutionTimeout(2)
+            ->withoutSslVerification()
+            ->withCaFile('/ca.pem')
+            ->withLocalCert('/client.pem')
+            ->withTransportOptions([99 => 'raw'])
+            ->execute('{}');
+
+        $options = $factory->usedOptions();
+        $this->assertSame(1, $options->connectTimeout);
+        $this->assertSame(2, $options->transferTimeout);
+        $this->assertFalse($options->verifySsl);
+        $this->assertSame('/ca.pem', $options->caFile);
+        $this->assertSame('/client.pem', $options->localCert);
+        $this->assertSame([99 => 'raw'], $options->extraOptions);
+    }
+
+    public function testUsesTheRealFactoryByDefault(): void
+    {
+        $client = new HttpClient('http://127.0.0.1:1/rpc');
+
+        $this->expectException(ConnectionFailureException::class);
+
+        $client->execute('{}');
+    }
+
+    public function testRejectsConnectionSettingsWhenATransportIsInjected(): void
+    {
+        $client = new HttpClient('https://example.com/rpc', new CurlTransport());
+
+        $this->expectException(LogicException::class);
+        $this->expectExceptionMessage('Connection settings do not apply to an injected transport');
+
+        $client->withTimeout(10);
     }
 }

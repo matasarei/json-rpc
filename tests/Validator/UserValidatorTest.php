@@ -1,48 +1,79 @@
 <?php
 
+declare(strict_types=1);
+
+namespace JsonRPC\Tests\Validator;
+
+use JsonRPC\Exception\AuthenticationFailureException;
 use JsonRPC\Validator\UserValidator;
+use PHPUnit\Framework\Attributes\CoversClass;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
-require_once __DIR__ . '/../../vendor/autoload.php';
-
-class UserValidatorTest extends TestCase
+#[CoversClass(UserValidator::class)]
+final class UserValidatorTest extends TestCase
 {
-    public function testWithEmptyHosts()
+    private UserValidator $validator;
+
+    protected function setUp(): void
     {
-        $this->assertNull(UserValidator::validate([], 'user', 'pass'));
+        $this->validator = new UserValidator();
     }
 
-    public function testWithValidHosts()
+    public function testAllowsEveryoneWhenNoUserIsConfigured(): void
     {
-        $this->assertNull(UserValidator::validate(['user' => 'pass'], 'user', 'pass'));
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate([], null, null);
     }
 
-    public function testWithNotAuthorizedHosts()
+    public function testAllowsAKnownUser(): void
     {
-        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
-        UserValidator::validate(['user' => 'pass'], 'user', 'wrong password');
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['user' => 'pass'], 'user', 'pass');
     }
 
-    public function testMissingPasswordIsRejectedEvenWithEmptyStoredPassword()
+    public function testAllowsCredentialsMadeOfTheStringZero(): void
     {
-        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
-        UserValidator::validate(['user' => ''], 'user', null);
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['0' => '0'], '0', '0');
     }
 
-    public function testEmptyPasswordMatchesEmptyStoredPassword()
+    public function testAllowsAnEmptyPasswordWhenThatIsWhatWasConfigured(): void
     {
-        $this->assertNull(UserValidator::validate(['user' => ''], 'user', ''));
+        $this->expectNotToPerformAssertions();
+
+        $this->validator->validate(['user' => ''], 'user', '');
     }
 
-    public function testUnknownUserIsRejected()
+    /**
+     * @return array<string, array{array<array-key, mixed>, string|null, string|null}>
+     */
+    public static function rejectedCredentials(): array
     {
-        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
-        UserValidator::validate(['user' => 'pass'], 'nobody', 'pass');
+        return [
+            'wrong password' => [['user' => 'pass'], 'user', 'wrong'],
+            'unknown user' => [['user' => 'pass'], 'nobody', 'pass'],
+            'missing username' => [['user' => 'pass'], null, 'pass'],
+            'missing password' => [['user' => 'pass'], 'user', null],
+            'missing password against an empty one' => [['user' => ''], 'user', null],
+            'non string stored password' => [['user' => false], 'user', ''],
+            'stored boolean true' => [['user' => true], 'user', '1'],
+            'stored integer' => [['user' => 0], 'user', '0'],
+        ];
     }
 
-    public function testNonStringStoredPasswordIsRejected()
+    /**
+     * @param array<array-key, mixed> $users
+     */
+    #[DataProvider('rejectedCredentials')]
+    public function testRejectsEverythingElse(array $users, ?string $username, ?string $password): void
     {
-        $this->expectException('\JsonRPC\Exception\AuthenticationFailureException');
-        UserValidator::validate(['user' => false], 'user', '');
+        $this->expectException(AuthenticationFailureException::class);
+        $this->expectExceptionMessage('Access not allowed');
+
+        $this->validator->validate($users, $username, $password);
     }
 }

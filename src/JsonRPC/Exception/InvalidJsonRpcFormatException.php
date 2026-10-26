@@ -1,13 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
 /**
- * Class InvalidJsonRpcFormatException
- *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * The payload is valid JSON but not a valid JSON-RPC 2.0 request (error code -32600).
  */
-class InvalidJsonRpcFormatException extends RpcCallFailedException
+class InvalidJsonRpcFormatException extends ResponseException
 {
 }

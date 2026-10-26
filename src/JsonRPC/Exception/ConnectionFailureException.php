@@ -1,12 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC\Exception;
 
 /**
- * Class ConnectionFailureException
- *
- * @package JsonRPC\Exception
- * @author  Frederic Guillot
+ * The request never completed at the transport level.
  */
 class ConnectionFailureException extends RpcCallFailedException
 {

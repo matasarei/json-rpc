@@ -1,27 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace JsonRPC;
 
 use JsonRPC\Exception\AccessDeniedException;
 use JsonRPC\Exception\AuthenticationFailureException;
 
 /**
- * Interface MiddlewareInterface
- *
- * @package JsonRPC
- * @author  Frederic Guillot
+ * Runs before a procedure is executed and can reject the call.
  */
 interface MiddlewareInterface
 {
     /**
-     * Execute Middleware
-     *
-     * @param  string $username
-     * @param  string $password
-     * @param  string $procedureName
-     *
-     * @throws AccessDeniedException
-     * @throws AuthenticationFailureException
+     * @throws AuthenticationFailureException To answer 401 Unauthorized
+     * @throws AccessDeniedException To answer 403 Forbidden
      */
-    public function execute($username, $password, $procedureName);
+    public function execute(?string $username, ?string $password, string $procedureName): void;
 }
