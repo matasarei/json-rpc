@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.5.1 (unreleased)
+
+### Fixed
+- `composer.json` is included in the dist archives again. `.gitattributes` excluded
+  `composer.*` from `git archive`, so the GitHub zipballs Packagist serves as `dist` for
+  v1.0.2 – v1.5.0 lacked it, which breaks tools that read the archive (Composer proxies
+  such as Sonatype Nexus, mirrors, SBOM/license scanners). Only `composer.lock` is
+  excluded now (#30).
+
 ## v1.5.0 (2026-07-24)
 
 ### Added
