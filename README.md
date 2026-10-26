@@ -1,11 +1,10 @@
 JSON-RPC PHP Client and Server
 =============================
 
-[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg?branch=2.x)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml?query=branch%3A2.x)
+[![CI workflow](https://github.com/matasarei/json-rpc/actions/workflows/main.yml/badge.svg)](https://github.com/matasarei/json-rpc/actions/workflows/main.yml)
 [![Latest Stable Version](https://img.shields.io/packagist/v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
-[![Latest Beta](https://img.shields.io/packagist/v/fguillot/json-rpc?include_prereleases&label=beta)](https://github.com/matasarei/json-rpc/releases)
 [![Total Downloads](https://img.shields.io/packagist/dt/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
-[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.4-777bb3?logo=php&logoColor=white)](https://www.php.net/supported-versions.php)
+[![PHP Version](https://img.shields.io/packagist/php-v/fguillot/json-rpc.svg)](https://packagist.org/packages/fguillot/json-rpc)
 [![PHPStan](https://img.shields.io/badge/PHPStan-max-brightgreen)](phpstan.neon)
 [![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)](.github/workflows/main.yml)
 [![License](https://img.shields.io/packagist/l/fguillot/json-rpc.svg)](LICENSE)
@@ -22,8 +21,9 @@ name `fguillot/json-rpc` on Packagist so existing installations keep working; th
 repository (`matasarei/json-rpc`) is the canonical source.
 
 **Version 2.0 is a rewrite.** The API kept its shape, but there are breaking changes:
-see [UPGRADE-2.0.md](UPGRADE-2.0.md) for the complete v1 to v2 mapping. The 1.5 branch
-still receives security fixes.
+see [UPGRADE-2.0.md](UPGRADE-2.0.md) for the complete v1 to v2 mapping. Version 1.5 still
+receives security fixes on the [`1.x`](https://github.com/matasarei/json-rpc/tree/1.x)
+branch.
 
 Features
 --------

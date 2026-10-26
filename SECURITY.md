@@ -5,7 +5,7 @@
 | Version | Support |
 |---------|---------|
 | 2.0.x   | Bug fixes and security fixes |
-| 1.5.x   | Security fixes only |
+| 1.5.x   | Security fixes only, on the `1.x` branch |
 | < 1.5   | Unsupported |
 
 ## Reporting a vulnerability

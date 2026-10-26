@@ -1,6 +1,6 @@
 # Changelog
 
-## v2.0.0 (unreleased)
+## v2.0.0 (2026-10-26)
 
 A rewrite that keeps the shape of the API. See [UPGRADE-2.0.md](UPGRADE-2.0.md) for the
 complete v1 to v2 mapping.
