@@ -144,7 +144,9 @@ public function rpc(Request $request, Server $server): Response
 }
 ```
 
-A [demo application](https://github.com/matasarei/json-rpc-demo) is available.
+The [demo application](https://github.com/matasarei/json-rpc-demo) is a complete Symfony app
+built this way: the server, and a client calling it through Symfony HttpClient over PSR-18, in one
+Docker container.
 
 ### Client
 
